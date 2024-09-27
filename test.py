@@ -31,50 +31,52 @@ DEFAULT_HEALTHCHECK = HealthCheck(
     timeout=1.0,
 )
 
-shutdown_future: concurrent.futures.Future[ServerShutdownEvent] = (
-    concurrent.futures.Future())
+shutdown_future: concurrent.futures.Future[
+    ServerShutdownEvent
+] = concurrent.futures.Future()
 
 osc_protocol = ThreadedOscProtocol(
-    name='',
-    on_panic_callback=lambda: shutdown_future.set_result(ServerShutdownEvent.
-                                                         OSC_PANIC),
+    name="",
+    on_panic_callback=lambda: shutdown_future.set_result(ServerShutdownEvent.OSC_PANIC),
 )
+
 
 def add_group(osc_protocol, group_id, add_action, target_node):
     msg = OscMessage(RequestName.GROUP_NEW, group_id, add_action, target_node)
     osc_protocol.send(msg)
 
-print('Connecting...')
+
+print("Connecting...")
 osc_protocol.connect(
-    ip_address='127.0.0.1',
+    ip_address="127.0.0.1",
     port=57110,
     healthcheck=DEFAULT_HEALTHCHECK,
 )
 
 time.sleep(3)
 
-print('Creating group...')
+print("Creating group...")
 add_group(osc_protocol, 34, 1, 1)
 
 time.sleep(1)
 
-print('Adding a synth...')
-msg = OscMessage(RequestName.SYNTH_NEW, 'default', 57, 1, 34)
+print("Adding a synth...")
+msg = OscMessage(RequestName.SYNTH_NEW, "default", 57, 1, 34)
 osc_protocol.send(msg)
 
 time.sleep(5)
 
-print('Freeing synth...')
+print("Freeing synth...")
 msg = OscMessage(RequestName.NODE_FREE, 57)
 osc_protocol.send(msg)
 
 time.sleep(1)
 
-print('Freeing group...')
+print("Freeing group...")
 msg = OscMessage(RequestName.NODE_FREE, 34)
 osc_protocol.send(msg)
 
 time.sleep(1)
 
-print('Disconnecting...')
+print("Disconnecting...")
 osc_protocol.disconnect()
