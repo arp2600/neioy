@@ -12,7 +12,7 @@ import sys
 from neioy.clocks import TempoClock
 
 from supriya.enums import RequestName
-from supriya.osc import HealthCheck, OscMessage, ThreadedOscProtocol
+from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
 
 class ServerShutdownEvent(enum.Enum):
     QUIT = enum.auto()
@@ -59,12 +59,15 @@ def add_group(osc_protocol, group_id, add_action, target_node):
     osc_protocol.send(msg)
     return Group(osc_protocol, group_id)
 
+t = TempoClock(tempo=100 / 60)
 
 def add_synth(osc_protocol, synthdef_name, synth_id, add_action, target_node, *args):
     msg = OscMessage(
         RequestName.SYNTH_NEW, synthdef_name, synth_id, add_action, target_node, *args
     )
-    osc_protocol.send(msg)
+    # osc_protocol.send(msg)
+    bundle = OscBundle(timestamp=t.beats2seconds(t.beats()) + 1, contents=(msg,))
+    osc_protocol.send(bundle)
 
 
 print("Connecting...")
@@ -142,9 +145,6 @@ def r1():
         yield 0.5
         i += 1
 
-
-t = TempoClock()
-t.tempo = 100 / 60
 
 if sys.flags.interactive == 0:
     print("Playing routines...")

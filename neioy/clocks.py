@@ -3,6 +3,9 @@ import queue
 from dataclasses import dataclass, field
 from typing import Any
 from threading import Thread
+import sys
+
+import random
 
 
 @dataclass(order=True)
@@ -12,17 +15,22 @@ class PrioritizedItem:
 
 
 class TempoClock:
-    def __init__(self):
-        self.tempo = 120 / 60
+    def __init__(self, tempo):
+        # TODO Make tempo adjustable from the main thread.
+        # The issue is at the moment, elapsedBeats = time.time() * tempo
+        # This means that for a given value of time.time(), changing the tempo changes elapsedBeats.
+        # This messes with the scheduling. Changing tempo should not affect elapsedBeats.
+        self._tempo = tempo
         self.routines = queue.PriorityQueue()
 
         self.runAsync()
 
     def play(self, routine):
-        self.routines.put(PrioritizedItem(0, routine))
+        when = self.elapsedBeats() + 1
+        self.routines.put(PrioritizedItem(when, routine))
 
     def _sleep_until(self, until):
-        while time.time() * self.tempo < until and not self._stop_thread:
+        while self.elapsedBeats() < until and not self._stop_thread:
             pass
 
     def run(self):
@@ -33,15 +41,17 @@ class TempoClock:
         self._play_thread.start()
 
     def elapsedBeats(self):
-        return (time.time() - self._start_time) * self.tempo
+        return time.time() * self._tempo
 
     def beats(self):
         return self._beats
 
+    def beats2seconds(self, beats):
+        return beats / self._tempo
+
     def _run(self):
-        self._start_time = time.time()
         self._stop_thread = False
-        self._beats = 0
+        self._beats = self.elapsedBeats()
 
         while True:
             if self._stop_thread:
@@ -49,16 +59,19 @@ class TempoClock:
                 return
 
             if self.routines.empty():
+                self._sleep_until(self._beats + 1)
+                self._beats += 1
                 continue
 
             x = self.routines.get()
 
+            sys.stdout.flush()
             self._sleep_until(x.priority)
             if self._stop_thread:
                 print("Stopping clock...")
                 return
 
-            physical_time = time.time() * self.tempo
+            physical_time = self.elapsedBeats()
             if x.priority == 0:
                 logical_time = physical_time
             else:
@@ -73,6 +86,5 @@ class TempoClock:
                 pass
 
     def stop(self):
-        print("TempoClock.stop")
         self._stop_thread = True
         self._play_thread.join()
