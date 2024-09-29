@@ -14,6 +14,9 @@ from neioy.clocks import TempoClock
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
 
+LATENCY = 0.25
+
+
 class ServerShutdownEvent(enum.Enum):
     QUIT = enum.auto()
     DISCONNECT = enum.auto()
@@ -59,14 +62,17 @@ def add_group(osc_protocol, group_id, add_action, target_node):
     osc_protocol.send(msg)
     return Group(osc_protocol, group_id)
 
-t = TempoClock(tempo=100 / 60)
+
+t = TempoClock()
+t.set_tempo(100 / 60)
+
 
 def add_synth(osc_protocol, synthdef_name, synth_id, add_action, target_node, *args):
     msg = OscMessage(
         RequestName.SYNTH_NEW, synthdef_name, synth_id, add_action, target_node, *args
     )
     # osc_protocol.send(msg)
-    bundle = OscBundle(timestamp=t.beats2seconds(t.beats()) + 1, contents=(msg,))
+    bundle = OscBundle(timestamp=t.beats2seconds(t.beats()) + LATENCY, contents=(msg,))
     osc_protocol.send(bundle)
 
 
@@ -82,19 +88,6 @@ time.sleep(1)
 print("Creating group...")
 g = add_group(osc_protocol, 34, 1, 1)
 
-x = [52, 62, 61, 62, 64]
-# yapf: disable
-y = [
-    67, 64, 67, 0, 0, 0, 64, -1, -1, -1, -1, -1,
-    61, 62, 61, 0, 0, 0, 61, -1, -1, -1, -1, -1,
-    61, 62, 64, 0, 0, 0, 64, -1, -1, -1, -1, -1,
-    61, 62, 61, 0, 0, 0, 61, -1, -1, -1, -1, -1,
-    61, 62, 64, 0, 0, 0, 64, -1, -1, -1, -1, -1
-]
-# yapf: enable
-x = [i - 12 for i in x]
-y = [i - 12 for i in y]
-
 
 def midicps(note):
     return 2 ** ((note - 69) / 12) * 440
@@ -109,21 +102,33 @@ def addFoo(note, *args):
     uid += 1
 
 
-def r1():
+# base notes on the quarter with random harmony notes thrown in
+def bassline(note):
+    addFoo(note, "amp", 0.4, "decay", 4)
+
+    for _ in range(12):
+        # harmonising base notes played randomly
+        if random.random() < 0.05:
+            addFoo(note + 7, "amp", 0.2, "decay", 4, "pan", random.choice([-0.5, 0.5]))
+
+        yield 0.5
+
+
+def main(seq1, seq2):
     i = 0
     while True:
         xAmp = 0.3 if i % 3 == 0 else 0.2
         xDecay = 0.5 if i % 3 == 0 else 0.3
-        xNote = x[i % len(x)]
+        xNote = seq1[i % len(seq1)]
         xPan = random.uniform(-1, 1)
         yPan = random.uniform(-1, 1)
 
-        # first voice, plays x
+        # first voice, plays seq1
         addFoo(xNote, "amp", xAmp, "decay", xDecay, "pan", xPan)
 
-        yNote = y[i % len(y)]
+        yNote = seq2[i % len(seq2)]
 
-        # second voice, plays y and sometimes x
+        # second voice, plays seq2 and sometimes seq1
         if yNote > 0:
             addFoo(yNote + 12, "amp", xAmp * 0.6, "decay", 1.2, "pan", yPan * 0.5)
             yAmp2 = 0.1
@@ -133,22 +138,30 @@ def r1():
 
         # base notes on the quarter
         if i % 12 == 0:
-            addFoo(xNote - 12, "amp", 0.4, "decay", 4)
-            baseNote = xNote - 12
-
-        # harmonising base notes played randomly
-        if random.random() < 0.05:
-            addFoo(
-                baseNote + 7, "amp", 0.2, "decay", 4, "pan", random.choice([-0.5, 0.5])
-            )
+            # trigger a routine from a routine
+            t.play(bassline(xNote - 12))
 
         yield 0.5
         i += 1
 
 
+x = [52, 62, 61, 62, 64]
+# yapf: disable
+y = [
+    67, 64, 67, 0, 0, 0, 64, -1, -1, -1, -1, -1,
+    61, 62, 61, 0, 0, 0, 61, -1, -1, -1, -1, -1,
+    61, 62, 64, 0, 0, 0, 64, -1, -1, -1, -1, -1,
+    61, 62, 61, 0, 0, 0, 61, -1, -1, -1, -1, -1,
+    61, 62, 64, 0, 0, 0, 64, -1, -1, -1, -1, -1
+]
+# yapf: enable
+x = [i - 12 for i in x]
+y = [i - 12 for i in y]
+
+
 if sys.flags.interactive == 0:
     print("Playing routines...")
-    t.play(r1())
+    t.play(main(x, y), quant=2)
 
-    input(f'Hit Enter to stop...')
+    input(f"Hit Enter to stop...\n")
     osc_protocol.disconnect()

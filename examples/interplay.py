@@ -9,9 +9,11 @@ import random
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, ThreadedOscProtocol
 
+
 def sleep_until(until):
     while time.time() < until:
         pass
+
 
 @dataclass(order=True)
 class PrioritizedItem:
@@ -48,6 +50,7 @@ class TempoClock:
             except StopIteration:
                 pass
 
+
 class ServerShutdownEvent(enum.Enum):
     QUIT = enum.auto()
     DISCONNECT = enum.auto()
@@ -65,18 +68,17 @@ DEFAULT_HEALTHCHECK = HealthCheck(
     timeout=1.0,
 )
 
-shutdown_future: concurrent.futures.Future[ServerShutdownEvent] = (
-    concurrent.futures.Future())
+shutdown_future: concurrent.futures.Future[
+    ServerShutdownEvent
+] = concurrent.futures.Future()
 
 osc_protocol = ThreadedOscProtocol(
-    name='',
-    on_panic_callback=lambda: shutdown_future.set_result(ServerShutdownEvent.
-                                                         OSC_PANIC),
+    name="",
+    on_panic_callback=lambda: shutdown_future.set_result(ServerShutdownEvent.OSC_PANIC),
 )
 
 
 class Group:
-
     def __init__(self, osc_protocol, group_id):
         self.osc_protocol = osc_protocol
         self.group_id = group_id
@@ -96,21 +98,22 @@ def add_group(osc_protocol, group_id, add_action, target_node):
 
 
 def add_synth(osc_protocol, synthdef_name, synth_id, add_action, target_node, *args):
-    msg = OscMessage(RequestName.SYNTH_NEW, synthdef_name, synth_id,
-                     add_action, target_node, *args)
+    msg = OscMessage(
+        RequestName.SYNTH_NEW, synthdef_name, synth_id, add_action, target_node, *args
+    )
     osc_protocol.send(msg)
 
 
-print('Connecting...')
+print("Connecting...")
 osc_protocol.connect(
-    ip_address='127.0.0.1',
+    ip_address="127.0.0.1",
     port=57110,
     healthcheck=DEFAULT_HEALTHCHECK,
 )
 
 time.sleep(1)
 
-print('Creating group...')
+print("Creating group...")
 g = add_group(osc_protocol, 34, 1, 1)
 
 t = TempoClock()
@@ -124,6 +127,7 @@ for octave in range(0, 12 * 7, 12):
         scale.append(octave + note)
 
 uid = 57
+
 
 # yields the next note every 4 ticks
 def notes1():
@@ -165,13 +169,15 @@ def r1():
         # n2 = None
 
         if n1 and not n2:
-            add_synth(osc_protocol, 'foo', uid, 1, g.id(), 'note', n1)
+            add_synth(osc_protocol, "foo", uid, 1, g.id(), "note", n1)
             uid += 1
         elif n2 and not n1:
-            add_synth(osc_protocol, 'foo', uid, 1, g.id(), 'note', n2)
+            add_synth(osc_protocol, "foo", uid, 1, g.id(), "note", n2)
             uid += 1
         elif n1 and n2:
-            add_synth(osc_protocol, 'foo', uid, 1, g.id(), 'note', random.choice([n1, n2]))
+            add_synth(
+                osc_protocol, "foo", uid, 1, g.id(), "note", random.choice([n1, n2])
+            )
             uid += 1
 
         yield 0.125
@@ -180,13 +186,13 @@ def r1():
 t.play(r1())
 
 # Blocks until all queued routines have finished playing.
-print('Playing routines...')
+print("Playing routines...")
 t.run()
 
 time.sleep(1)
 
-print('Freeing group...')
+print("Freeing group...")
 g.free()
 
-print('Disconnecting...')
+print("Disconnecting...")
 osc_protocol.disconnect()
