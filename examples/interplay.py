@@ -126,33 +126,36 @@ def notes2():
                 yield None
 
 
+def play_note(note):
+    global uid
+    node_id = uid
+    uid += 1
+
+    # subroutine plays notes for some time and then frees the synth
+    def r():
+        add_synth(osc_protocol, "default", node_id, 1, g.id(), "freq", midicps(note))
+        yield random.choice([0.5, 1.0, 1.5])
+        msg = OscMessage(RequestName.NODE_FREE, node_id)
+        osc_protocol.send(msg)
+
+    t.play(r())
+
+
 def r1():
     nr1 = notes1()
     nr2 = notes2()
 
     while True:
-        global uid
         n1 = next(nr1)
         n2 = next(nr2)
         # n2 = None
 
         if n1 and not n2:
-            add_synth(osc_protocol, "foo", uid, 1, g.id(), "freq", midicps(n1))
-            uid += 1
+            play_note(n1)
         elif n2 and not n1:
-            add_synth(osc_protocol, "foo", uid, 1, g.id(), "freq", midicps(n2))
-            uid += 1
+            play_note(n2)
         elif n1 and n2:
-            add_synth(
-                osc_protocol,
-                "foo",
-                uid,
-                1,
-                g.id(),
-                "freq",
-                midicps(random.choice([n1, n2])),
-            )
-            uid += 1
+            play_note(random.choice([n1, n2]))
 
         yield 0.25
 
