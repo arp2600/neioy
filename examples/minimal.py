@@ -9,7 +9,9 @@ from threading import Thread
 import __main__
 from icecream import ic
 import sys
+
 from neioy.clocks import TempoClock
+from neioy.util import midicps
 
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
@@ -87,10 +89,6 @@ time.sleep(1)
 
 print("Creating group...")
 g = add_group(osc_protocol, 34, 1, 1)
-
-
-def midicps(note):
-    return 2 ** ((note - 69) / 12) * 440
 
 
 uid = 57

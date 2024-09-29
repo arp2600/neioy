@@ -6,49 +6,17 @@ import concurrent.futures
 import enum
 import random
 
+from neioy.clocks import TempoClock
+from neioy.util import midicps
+
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, ThreadedOscProtocol
-
-
-def sleep_until(until):
-    while time.time() < until:
-        pass
 
 
 @dataclass(order=True)
 class PrioritizedItem:
     priority: int
     item: Any = field(compare=False)
-
-
-class TempoClock:
-    def __init__(self):
-        self.tempo = 120 / 60
-        self.routines = queue.PriorityQueue()
-
-    def play(self, routine):
-        self.routines.put(PrioritizedItem(0, routine))
-
-    def run(self):
-        # physical_time = time.time()
-        # logical_time = time.time()
-
-        while not self.routines.empty():
-            x = self.routines.get()
-
-            sleep_until(x.priority)
-
-            physical_time = time.time()
-            if x.priority == 0:
-                logical_time = physical_time
-            else:
-                logical_time = x.priority
-
-            try:
-                schedule_time = next(x.item) + logical_time
-                self.routines.put(PrioritizedItem(schedule_time, x.item))
-            except StopIteration:
-                pass
 
 
 class ServerShutdownEvent(enum.Enum):
@@ -117,7 +85,7 @@ print("Creating group...")
 g = add_group(osc_protocol, 34, 1, 1)
 
 t = TempoClock()
-t.tempo = 120 / 60
+t.set_tempo(120 / 60)
 
 start = time.time()
 
@@ -169,27 +137,29 @@ def r1():
         # n2 = None
 
         if n1 and not n2:
-            add_synth(osc_protocol, "foo", uid, 1, g.id(), "note", n1)
+            add_synth(osc_protocol, "foo", uid, 1, g.id(), "freq", midicps(n1))
             uid += 1
         elif n2 and not n1:
-            add_synth(osc_protocol, "foo", uid, 1, g.id(), "note", n2)
+            add_synth(osc_protocol, "foo", uid, 1, g.id(), "freq", midicps(n2))
             uid += 1
         elif n1 and n2:
             add_synth(
-                osc_protocol, "foo", uid, 1, g.id(), "note", random.choice([n1, n2])
+                osc_protocol,
+                "foo",
+                uid,
+                1,
+                g.id(),
+                "freq",
+                midicps(random.choice([n1, n2])),
             )
             uid += 1
 
-        yield 0.125
+        yield 0.25
 
 
 t.play(r1())
 
-# Blocks until all queued routines have finished playing.
-print("Playing routines...")
-t.run()
-
-time.sleep(1)
+input(f"Hit Enter to stop...\n")
 
 print("Freeing group...")
 g.free()
