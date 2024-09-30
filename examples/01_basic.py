@@ -23,9 +23,9 @@ DEFAULT_HEALTHCHECK = HealthCheck(
     timeout=1.0,
 )
 
-shutdown_future: concurrent.futures.Future[
-    ServerShutdownEvent
-] = concurrent.futures.Future()
+shutdown_future: concurrent.futures.Future[ServerShutdownEvent] = (
+    concurrent.futures.Future()
+)
 
 osc_protocol = ThreadedOscProtocol(
     name="",

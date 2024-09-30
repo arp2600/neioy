@@ -43,7 +43,9 @@ class TempoClock:
 
     def beats2seconds(self, beats):
         return ((beats - self._ref_beats) / self._tempo) + self._ref_time
-        return 0
+
+    def time(self):
+        return self.beats2seconds(self.beats())
 
     def _get_next_event(self):
         if not self._routines.empty():

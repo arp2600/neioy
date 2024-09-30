@@ -12,92 +12,22 @@ import sys
 
 from neioy.clocks import TempoClock
 from neioy.util import midicps
+import neioy.supercollider as sc
 
-from supriya.enums import RequestName
-from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
-
-LATENCY = 0.25
-
-
-class ServerShutdownEvent(enum.Enum):
-    QUIT = enum.auto()
-    DISCONNECT = enum.auto()
-    OSC_PANIC = enum.auto()
-    PROCESS_PANIC = enum.auto()
-    TOO_MANY_CLIENTS = enum.auto()
-
-
-DEFAULT_HEALTHCHECK = HealthCheck(
-    active=False,
-    backoff_factor=1.5,
-    max_attempts=5,
-    request_pattern=["/status"],
-    response_pattern=["/status.reply"],
-    timeout=1.0,
-)
-
-shutdown_future: concurrent.futures.Future[
-    ServerShutdownEvent
-] = concurrent.futures.Future()
-
-osc_protocol = ThreadedOscProtocol(
-    name="",
-    on_panic_callback=lambda: shutdown_future.set_result(ServerShutdownEvent.OSC_PANIC),
-)
-
-
-class Group:
-    def __init__(self, osc_protocol, group_id):
-        self.osc_protocol = osc_protocol
-        self.group_id = group_id
-
-    def free(self):
-        msg = OscMessage(RequestName.NODE_FREE, self.group_id)
-        self.osc_protocol.send(msg)
-
-    def id(self):
-        return self.group_id
-
-
-def add_group(osc_protocol, group_id, add_action, target_node):
-    msg = OscMessage(RequestName.GROUP_NEW, group_id, add_action, target_node)
-    osc_protocol.send(msg)
-    return Group(osc_protocol, group_id)
-
+server = sc.Server()
+server.connect()
 
 t = TempoClock()
 t.set_tempo(100 / 60)
 
-
-def add_synth(osc_protocol, synthdef_name, synth_id, add_action, target_node, *args):
-    msg = OscMessage(
-        RequestName.SYNTH_NEW, synthdef_name, synth_id, add_action, target_node, *args
-    )
-    # osc_protocol.send(msg)
-    bundle = OscBundle(timestamp=t.beats2seconds(t.beats()) + LATENCY, contents=(msg,))
-    osc_protocol.send(bundle)
-
-
-print("Connecting...")
-osc_protocol.connect(
-    ip_address="127.0.0.1",
-    port=57110,
-    healthcheck=DEFAULT_HEALTHCHECK,
-)
-
 time.sleep(1)
 
 print("Creating group...")
-g = add_group(osc_protocol, 34, 1, 1)
-
-
-uid = 57
+g = server.add_group(1, 1)
 
 
 def addFoo(note, *args):
-    global uid
-    add_synth(osc_protocol, "foo", uid, 1, g.id(), "freq", midicps(note), *args)
-    uid += 1
+    server.add_synth("foo", 1, g, "freq", midicps(note), *args)
 
 
 # base notes on the quarter with random harmony notes thrown in
@@ -157,9 +87,8 @@ x = [i - 12 for i in x]
 y = [i - 12 for i in y]
 
 
-if sys.flags.interactive == 0:
-    print("Playing routines...")
-    t.play(main(x, y), quant=2)
+print("Playing routines...")
+t.play(main(x, y), quant=2)
 
-    input(f"Hit Enter to stop...\n")
-    osc_protocol.disconnect()
+input(f"Hit Enter to stop...\n")
+server.disconnect()
