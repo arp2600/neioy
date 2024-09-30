@@ -27,9 +27,11 @@ g = server.add_group(sc.AddAction.ADD_TO_TAIL)
 
 
 def addFoo(note, *args):
+    server.start_bundle(t.time() + 1)
     server.add_synth(
         "foo", sc.AddAction.ADD_TO_TAIL, "freq", midicps(note), *args, target=g
     )
+    server.end_bundle()
 
 
 # base notes on the quarter with random harmony notes thrown in
@@ -47,6 +49,9 @@ def bassline(note):
 def main(seq1, seq2):
     i = 0
     while True:
+        # add in a random sleep to demonstrate latency
+        # compensation working.
+        time.sleep(random.random() * 0.2)
         xAmp = 0.3 if i % 3 == 0 else 0.2
         xDecay = 0.5 if i % 3 == 0 else 0.3
         xNote = seq1[i % len(seq1)]
@@ -69,7 +74,16 @@ def main(seq1, seq2):
         # base notes on the quarter
         if i % 12 == 0:
             # trigger a routine from a routine
-            t.play(bassline(xNote - 12))
+            # scheduling it for now compensates for the time
+            # taken to execute this routine.
+            # calling t.play would start the routine at
+            # t.elapsed_beats() which would be later than
+            # t.beats().
+            # The latency added by the bundles then makes
+            # sure all the notes are played when they're
+            # meant to be, even though `bassline` will
+            # execute a little after `main`.
+            t.sched_abs(bassline(xNote - 12), t.beats())
 
         yield 0.5
         i += 1
@@ -90,7 +104,7 @@ y = [i - 12 for i in y]
 
 
 print("Playing routines...")
-t.play(main(x, y), quant=2)
+t.play(main(x, y), quant=4)
 
 input(f"Hit Enter to stop...\n")
 server.disconnect()

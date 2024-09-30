@@ -84,5 +84,9 @@ class TempoClock:
         self._add_event(when, routine)
         self._finished_routines.clear()
 
+    def sched_abs(self, routine, when):
+        self._add_event(when, routine)
+        self._finished_routines.clear()
+
     def wait(self):
         self._finished_routines.wait()

@@ -71,6 +71,19 @@ class Server:
             ),
         )
 
+        self._bundle = None
+        self._bundle_timestamp = None
+
+    def start_bundle(self, timestamp):
+        self._bundle = []
+        self._bundle_timestamp = timestamp
+
+    def end_bundle(self):
+        bundle = OscBundle(timestamp=self._bundle_timestamp, contents=self._bundle)
+        self._osc_protocol.send(bundle)
+        self._bundle = None
+        self._bundle_timestamp = None
+
     def connect(self, ip_address="127.0.0.1", port=57110):
         print("Connecting...")
         self._osc_protocol.connect(
@@ -84,7 +97,10 @@ class Server:
 
     def send_message(self, *args):
         msg = OscMessage(*args)
-        self._osc_protocol.send(msg)
+        if self._bundle is None:
+            self._osc_protocol.send(msg)
+        else:
+            self._bundle.append(msg)
 
     def _free_node(self, uid):
         self.send_message(RequestName.NODE_FREE, uid)
