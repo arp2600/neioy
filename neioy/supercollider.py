@@ -4,6 +4,16 @@ import enum
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
 
+DEFAULT_GROUP = 1
+
+
+class AddAction(enum.Enum):
+    ADD_TO_HEAD = 0
+    ADD_TO_TAIL = 1
+    ADD_BEFORE = 2
+    ADD_AFTER = 3
+    REPLACE = 4
+
 
 class ServerShutdownEvent(enum.Enum):
     QUIT = enum.auto()
@@ -84,15 +94,18 @@ class Server:
         self._next_uid += 1
         return result
 
-    def add_group(self, add_action, target_node):
+    def add_group(self, add_action, target_node=DEFAULT_GROUP):
         uid = self._get_next_uid()
         self.send_message(RequestName.GROUP_NEW, uid, add_action, target_node)
         return Group(self, uid)
 
-    def add_synth(self, synthdef_name, add_action, target, *args):
+    def add_synth(self, synthdef_name, add_action, *args, target=DEFAULT_GROUP):
+        if hasattr(target, "uid"):
+            target = target.uid()
+
         uid = self._get_next_uid()
         self.send_message(
-            RequestName.SYNTH_NEW, synthdef_name, uid, add_action, target.uid(), *args
+            RequestName.SYNTH_NEW, synthdef_name, uid, add_action, target, *args
         )
         return Synth(self, uid)
         # msg = OscMessage(
