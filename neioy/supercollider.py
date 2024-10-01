@@ -1,5 +1,6 @@
 import concurrent.futures
 import enum
+from contextlib import contextmanager
 
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
@@ -74,11 +75,13 @@ class Server:
         self._bundle = None
         self._bundle_timestamp = None
 
-    def start_bundle(self, timestamp):
+    @contextmanager
+    def bundle(self, timestamp):
         self._bundle = []
         self._bundle_timestamp = timestamp
 
-    def end_bundle(self):
+        yield None
+
         bundle = OscBundle(timestamp=self._bundle_timestamp, contents=self._bundle)
         self._osc_protocol.send(bundle)
         self._bundle = None

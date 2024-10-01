@@ -27,11 +27,10 @@ g = server.add_group(sc.AddAction.ADD_TO_TAIL)
 
 
 def addFoo(note, *args):
-    server.start_bundle(t.time() + 1)
-    server.add_synth(
-        "foo", sc.AddAction.ADD_TO_TAIL, "freq", midicps(note), *args, target=g
-    )
-    server.end_bundle()
+    with server.bundle(t.time() + 0.25):
+        server.add_synth(
+            "foo", sc.AddAction.ADD_TO_TAIL, "freq", midicps(note), *args, target=g
+        )
 
 
 # base notes on the quarter with random harmony notes thrown in
