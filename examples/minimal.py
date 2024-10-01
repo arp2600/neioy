@@ -82,7 +82,7 @@ def main(seq1, seq2):
             # sure all the notes are played when they're
             # meant to be, even though `bassline` will
             # execute a little after `main`.
-            t.sched_abs(bassline(xNote - 12), t.beats())
+            t.sched(bassline(xNote - 12), 0)
 
         yield 0.5
         i += 1

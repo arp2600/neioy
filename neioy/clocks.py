@@ -55,6 +55,7 @@ class TempoClock:
 
     def _add_event(self, beats, event):
         self._routines.put(ScheduledEvent(beats, event))
+        self._finished_routines.clear()
 
     def _run(self):
         print("TempoClock._run")
@@ -82,11 +83,12 @@ class TempoClock:
         if quant:
             when = math.ceil(when / quant) * quant
         self._add_event(when, routine)
-        self._finished_routines.clear()
 
     def sched_abs(self, routine, when):
         self._add_event(when, routine)
-        self._finished_routines.clear()
+
+    def sched(self, routine, delta):
+        self.sched_abs(routine, self.beats() + delta)
 
     def wait(self):
         self._finished_routines.wait()
