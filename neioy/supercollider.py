@@ -62,6 +62,28 @@ class Synth:
         return self._uid
 
 
+class _MessageSender:
+    def __init__(self, osc_protocol):
+        self._osc_protocol = osc_protocol
+
+    def __call__(self, msg):
+        self._osc_protocol.send(msg)
+
+
+class _BundleMessageSender:
+    def __init__(self, osc_protocol, timestamp):
+        self._osc_protocol = osc_protocol
+        self._timestamp = timestamp
+        self._contents = []
+
+    def __call__(self, msg):
+        self._contents.append(msg)
+
+    def send_bundle(self):
+        bundle = OscBundle(timestamp=self._timestamp, contents=self._contents)
+        self._osc_protocol.send(bundle)
+
+
 class Server:
     def __init__(self):
         self._next_uid = 1234
@@ -72,20 +94,17 @@ class Server:
             ),
         )
 
-        self._bundle = None
-        self._bundle_timestamp = None
+        self._send_message = _MessageSender(self._osc_protocol)
 
     @contextmanager
     def bundle(self, timestamp):
-        self._bundle = []
-        self._bundle_timestamp = timestamp
+        old_send_message = self._send_message
+        self._send_message = _BundleMessageSender(self._osc_protocol, timestamp)
 
         yield None
 
-        bundle = OscBundle(timestamp=self._bundle_timestamp, contents=self._bundle)
-        self._osc_protocol.send(bundle)
-        self._bundle = None
-        self._bundle_timestamp = None
+        self._send_message.send_bundle()
+        self._send_message = old_send_message
 
     def connect(self, ip_address="127.0.0.1", port=57110):
         print("Connecting...")
@@ -100,10 +119,7 @@ class Server:
 
     def send_message(self, *args):
         msg = OscMessage(*args)
-        if self._bundle is None:
-            self._osc_protocol.send(msg)
-        else:
-            self._bundle.append(msg)
+        self._send_message(msg)
 
     def _free_node(self, uid):
         self.send_message(RequestName.NODE_FREE, uid)
