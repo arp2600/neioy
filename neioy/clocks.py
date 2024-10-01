@@ -79,7 +79,7 @@ class TempoClock:
                 self._beats = self.elapsed_beats()
 
     def play(self, routine, quant=None):
-        when = self.elapsed_beats()
+        when = self.beats()
         if quant:
             when = math.ceil(when / quant) * quant
         self._add_event(when, routine)

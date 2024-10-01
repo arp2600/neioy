@@ -72,17 +72,7 @@ def main(seq1, seq2):
 
         # base notes on the quarter
         if i % 12 == 0:
-            # trigger a routine from a routine
-            # scheduling it for now compensates for the time
-            # taken to execute this routine.
-            # calling t.play would start the routine at
-            # t.elapsed_beats() which would be later than
-            # t.beats().
-            # The latency added by the bundles then makes
-            # sure all the notes are played when they're
-            # meant to be, even though `bassline` will
-            # execute a little after `main`.
-            t.sched(bassline(xNote - 12), 0)
+            t.play(bassline(xNote - 12))
 
         yield 0.5
         i += 1
