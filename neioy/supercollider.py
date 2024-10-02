@@ -44,7 +44,7 @@ class Group:
         self._uid = uid
 
     def free(self):
-        self._server._free_node(self.uid)
+        self._server._free_node(self._uid)
 
     def uid(self):
         return self._uid
@@ -56,7 +56,15 @@ class Synth:
         self._uid = uid
 
     def free(self):
-        self._server._free_node(self.uid)
+        self._server._free_node(self._uid)
+
+    def set(self, name, value):
+        self._server.send_message(RequestName.NODE_SET, self._uid, name, value)
+
+    def setn(self, name, *values):
+        self._server.send_message(
+            RequestName.NODE_SET_CONTIGUOUS, self._uid, name, len(values), *values
+        )
 
     def uid(self):
         return self._uid
