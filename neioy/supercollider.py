@@ -142,7 +142,13 @@ class Server:
         self.send_message(RequestName.GROUP_NEW, uid, add_action, target_node)
         return Group(self, uid)
 
-    def add_synth(self, synthdef_name, add_action, *args, target=DEFAULT_GROUP):
+    def add_synth(
+        self,
+        synthdef_name,
+        *args,
+        target=DEFAULT_GROUP,
+        add_action=AddAction.ADD_TO_HEAD
+    ):
         if hasattr(target, "uid"):
             target = target.uid()
 

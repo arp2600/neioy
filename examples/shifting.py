@@ -31,7 +31,9 @@ g = server.add_group(sc.AddAction.ADD_TO_TAIL)
 
 def addFoo(note, *args):
     with server.bundle(t.time() + 0.25):
-        server.add_synth("foo", sc.AddAction.ADD_TO_TAIL, "freq", note, *args, target=g)
+        server.add_synth(
+            "foo", "freq", note, *args, target=g, add_action=sc.AddAction.ADD_TO_TAIL
+        )
 
 
 # %%
@@ -61,7 +63,6 @@ for i in range(len(notes)):
 
 server.add_synth(
     "FreeVerb2x2",
-    sc.AddAction.ADD_TO_TAIL,
     "outbus",
     0,
     "room",
@@ -70,6 +71,7 @@ server.add_synth(
     0.33,
     "damp",
     0.9,
+    add_action=sc.AddAction.ADD_TO_TAIL,
 )
 
 # %%

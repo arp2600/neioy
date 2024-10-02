@@ -22,7 +22,7 @@ tc.set_tempo(60 / 60)
 
 
 def play():
-    s = server.add_synth("default", sc.AddAction.ADD_TO_TAIL, "freq", midicps(60))
+    s = server.add_synth("default", "freq", midicps(60))
     yield 1
     s.set("freq", midicps(64))
     yield 1
@@ -30,9 +30,7 @@ def play():
 
     yield 0.5
 
-    s = server.add_synth(
-        "nsetntest", sc.AddAction.ADD_TO_TAIL, "freqs", [midicps(69), midicps(71)]
-    )
+    s = server.add_synth("nsetntest", "freqs", [midicps(69), midicps(71)])
     yield 1
     s.setn("freqs", midicps(65), midicps(76))
     yield 1
