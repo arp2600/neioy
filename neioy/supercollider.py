@@ -93,7 +93,10 @@ class _BundleMessageSender:
 
 
 class Server:
-    def __init__(self):
+    def __init__(self, clock=None):
+        self._clock = clock
+        self.latency = 0.25
+
         self._next_uid = 1234
         self._osc_protocol = ThreadedOscProtocol(
             name="",
@@ -105,14 +108,18 @@ class Server:
         self._send_message = _MessageSender(self._osc_protocol)
 
     @contextmanager
-    def bundle(self, timestamp):
-        old_send_message = self._send_message
-        self._send_message = _BundleMessageSender(self._osc_protocol, timestamp)
+    def bind(self):
+        with self._clock.block_yield(
+            "Can not yield from within a server.bind context."
+        ):
+            timestamp = self._clock.time() + self.latency
+            old_send_message = self._send_message
+            self._send_message = _BundleMessageSender(self._osc_protocol, timestamp)
 
-        yield None
+            yield None
 
-        self._send_message.send_bundle()
-        self._send_message = old_send_message
+            self._send_message.send_bundle()
+            self._send_message = old_send_message
 
     def connect(self, ip_address="127.0.0.1", port=57110):
         print("Connecting...")

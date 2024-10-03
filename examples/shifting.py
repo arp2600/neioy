@@ -14,11 +14,11 @@ from neioy.clocks import TempoClock
 from neioy.util import midicps, amp_comp
 import neioy.supercollider as sc
 
-server = sc.Server()
-server.connect()
-
 t = TempoClock()
 t.set_tempo(60 / 60)
+
+server = sc.Server(t)
+server.connect()
 
 time.sleep(1)
 
@@ -30,7 +30,7 @@ g = server.add_group(sc.AddAction.ADD_TO_TAIL)
 
 
 def addFoo(note, *args):
-    with server.bundle(t.time() + 0.25):
+    with server.bind():
         server.add_synth(
             "foo", "freq", note, *args, target=g, add_action=sc.AddAction.ADD_TO_TAIL
         )

@@ -5,6 +5,8 @@ from typing import Any
 from threading import Thread
 import threading
 import math
+import sys
+from contextlib import contextmanager
 
 
 @dataclass(order=True)
@@ -19,6 +21,9 @@ class TempoClock:
         self._ref_time = time.time()
         self._ref_beats = 0
         self._beats = 0
+
+        self._dont_yield = False
+        self._dont_yield_reason = None
 
         self._routines = queue.PriorityQueue()
         # flag for when all routines have been processed.
@@ -69,6 +74,10 @@ class TempoClock:
                 self._beats = next_event.scheduled_time
                 try:
                     yielded_time = next(next_event.event)
+
+                    if self._dont_yield:
+                        raise Exception(self._dont_yield_reason)
+
                     self._add_event(self._beats + yielded_time, next_event.event)
                 except StopIteration:
                     if self._routines.empty():
@@ -77,6 +86,17 @@ class TempoClock:
                 next_event = None
             else:
                 self._beats = self.elapsed_beats()
+
+    # There are situations where yielding can cause
+    # confusing and difficult to debug behaviour, such as
+    # from withing a `server.bind` context.
+    @contextmanager
+    def block_yield(self, reason):
+        self._dont_yield = True
+        self._dont_yield_reason = reason
+        yield None
+        self._dont_yield = False
+        self._dont_yield_reason = None
 
     def play(self, routine, quant=None):
         when = self.beats()
