@@ -6,11 +6,12 @@ from neioy.clocks import TempoClock
 from neioy.util import *
 import neioy.supercollider as sc
 
-server = sc.Server()
+tempo_clock = TempoClock()
+tempo_clock.set_tempo(60 / 60)
+
+server = sc.Server(tempo_clock)
 server.connect()
 
-tempo_clock = server.get_clock()
-tempo_clock.set_tempo(60 / 60)
 
 time.sleep(1)
 

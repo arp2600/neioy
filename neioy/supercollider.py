@@ -4,7 +4,6 @@ from contextlib import contextmanager
 
 from supriya.enums import RequestName
 from supriya.osc import HealthCheck, OscMessage, OscBundle, ThreadedOscProtocol
-from .clocks import TempoClock
 
 DEFAULT_GROUP = 1
 
@@ -95,11 +94,7 @@ class _BundleMessageSender:
 
 class Server:
     def __init__(self, clock=None):
-        if clock is None:
-            self._clock = TempoClock()
-        else:
-            self._clock = clock
-
+        self._clock = clock
         self.latency = 0.25
 
         self._next_uid = 1234
@@ -111,9 +106,6 @@ class Server:
         )
 
         self._send_message = _MessageSender(self._osc_protocol)
-
-    def get_clock(self):
-        return self._clock
 
     @contextmanager
     def bind(self):
