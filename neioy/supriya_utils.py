@@ -1,10 +1,9 @@
 import supriya
 
 """
-Connect to an existing server.
-This overrides some methods and properties of supriya.Server for compatibility with supercollider.
+Apply overrides of supriya functions and methods.
 """
-def connect_to_server(ip_address, port):
+def apply_supriya_patches():
     # Override default_group so the id matches supercolliders.
     @property
     def default_group(self):
@@ -24,6 +23,10 @@ def connect_to_server(ip_address, port):
 
     supriya.Server._resolve_node = _resolve_node
 
+"""
+Connect to an existing server and populate server state using the result of server.query_tree().
+"""
+def connect_to_server(ip_address, port):
     assert isinstance(port, int)
     server = supriya.Server().connect(ip_address=ip_address, port=port)
 
