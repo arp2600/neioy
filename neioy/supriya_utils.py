@@ -23,23 +23,27 @@ def apply_supriya_patches():
 
     supriya.Server._resolve_node = _resolve_node
 
-"""
-Connect to an existing server and populate server state using the result of server.query_tree().
-"""
-def connect_to_server(ip_address, port):
-    assert isinstance(port, int)
-    server = supriya.Server().connect(ip_address=ip_address, port=port)
 
-    # Populate server._node_children and server._node_parents using the data from server.query_tree().
-    def add_nodes(node, parent):
-        server._node_children[node.node_id] = []
-        if parent:
-            server._node_parents[node.node_id] = parent.node_id
+    # Wrap connect so that server._node_children and server._node_parents can be
+    # initialized using data from server.query_tree().
+    inner_connect = supriya.Server.connect
 
-        for child in node.children:
-            add_nodes(child, node)
+    def connect_wrapper(self, ip_address, port):
+        assert isinstance(port, int)
+        inner_connect(self, ip_address=ip_address, port=port)
 
-    root = server.query_tree()
-    add_nodes(root, None)
+        # Populate server._node_children and server._node_parents using the data from server.query_tree().
+        def add_nodes(node, parent):
+            self._node_children[node.node_id] = []
+            if parent:
+                self._node_parents[node.node_id] = parent.node_id
 
-    return server
+            for child in node.children:
+                add_nodes(child, node)
+
+        root = self.query_tree()
+        add_nodes(root, None)
+
+        return self
+
+    supriya.Server.connect = connect_wrapper
