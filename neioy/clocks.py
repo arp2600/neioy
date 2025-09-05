@@ -17,8 +17,8 @@ class ScheduledEvent:
 
 
 class TempoClock:
-    def __init__(self):
-        self._tempo = 120 / 60
+    def __init__(self, tempo=2.0):
+        self._tempo = tempo
         self._ref_time = time.time()
         self._ref_beats = 0
         self._beats = 0
