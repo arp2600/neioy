@@ -6,6 +6,7 @@ from threading import Thread
 import threading
 import math
 import sys
+import traceback
 from contextlib import contextmanager
 
 
@@ -62,6 +63,25 @@ class TempoClock:
         self._routines.put(ScheduledEvent(beats, event))
         self._finished_routines.clear()
 
+
+    def _process_event(self, event):
+        try:
+            yielded_time = next(event.event)
+        except StopIteration:
+            if self._routines.empty():
+                self._finished_routines.set()
+        except Exception as e:
+            if self._routines.empty():
+                self._finished_routines.set()
+            # Print the exception that happened in the routine but we don't want
+            # the clock to stop running.
+            traceback.print_exception(e)
+        else:
+            if self._dont_yield:
+                raise Exception(self._dont_yield_reason)
+            self._add_event(self._beats + yielded_time, event.event)
+
+
     def _run(self):
         print("TempoClock._run")
         next_event = None
@@ -72,20 +92,11 @@ class TempoClock:
 
             if next_event and self.elapsed_beats() > next_event.scheduled_time:
                 self._beats = next_event.scheduled_time
-                try:
-                    yielded_time = next(next_event.event)
-
-                    if self._dont_yield:
-                        raise Exception(self._dont_yield_reason)
-
-                    self._add_event(self._beats + yielded_time, next_event.event)
-                except StopIteration:
-                    if self._routines.empty():
-                        self._finished_routines.set()
-                    pass
+                self._process_event(next_event)
                 next_event = None
             else:
                 self._beats = self.elapsed_beats()
+
 
     # There are situations where yielding can cause
     # confusing and difficult to debug behaviour, such as
