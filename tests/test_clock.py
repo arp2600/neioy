@@ -95,3 +95,80 @@ def test_wait():
     t.play(r())
     t.wait()
     assert len(x) == 3
+
+
+def test_multiple_routines():
+    t = TempoClock()
+    x = []
+
+    def r1():
+        for i in [0, 2, 4]:
+            x.append(i)
+            yield 0.1
+
+    def r2():
+        yield 0.05
+        for i in [1, 3, 5]:
+            x.append(i)
+            yield 0.1
+
+    t.play(r1())
+    t.play(r2())
+    t.wait()
+    assert x == [0, 1, 2, 3, 4, 5]
+
+
+def test_passing_function_to_play():
+    t = TempoClock()
+    x = []
+
+    def r1():
+        for i in [0, 2, 4]:
+            x.append(i)
+            yield 0.1
+
+    def r2():
+        yield 0.05
+        for i in [1, 3, 5]:
+            x.append(i)
+            yield 0.1
+
+    t.play(r1())  # call t.play with a generator
+    t.play(r2)  # call t.play with a function
+    t.wait()
+    assert x == [0, 1, 2, 3, 4, 5]
+
+
+def test_exceptions():
+    t = TempoClock()
+
+    x = []
+
+    def r1():
+        x.append(0)
+        yield 0.1
+        raise Exception('foo')
+        x.append(1)
+
+    def r2():
+        yield 0.1
+        x.append(2)
+        yield 0.1
+        x.append(3)
+
+    # r1 raises an exception but that shouldn't prevent r2 from running to completion.
+    t.play(r1())
+    t.play(r2())
+    t.wait()
+
+    def r3():
+        x.append(4)
+        yield 0.1
+        x.append(5)
+
+    # clock should still be able to run a new routine even after a previous routine raise
+    # an exception.
+    t.play(r3())
+    t.wait()
+
+    assert x == [0, 2, 3, 4, 5]

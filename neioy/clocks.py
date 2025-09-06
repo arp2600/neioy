@@ -17,6 +17,7 @@ class ScheduledEvent:
 
 
 class TempoClock:
+
     def __init__(self, tempo=2.0):
         self._tempo = tempo
         self._ref_time = time.time()
@@ -63,7 +64,6 @@ class TempoClock:
         self._routines.put(ScheduledEvent(beats, event))
         self._finished_routines.clear()
 
-
     def _process_event(self, event):
         try:
             yielded_time = next(event.event)
@@ -81,7 +81,6 @@ class TempoClock:
                 raise Exception(self._dont_yield_reason)
             self._add_event(self._beats + yielded_time, event.event)
 
-
     def _run(self):
         print("TempoClock._run")
         next_event = None
@@ -97,7 +96,6 @@ class TempoClock:
             else:
                 self._beats = self.elapsed_beats()
 
-
     # There are situations where yielding can cause
     # confusing and difficult to debug behaviour, such as
     # from withing a `server.bind` context.
@@ -110,6 +108,9 @@ class TempoClock:
         self._dont_yield_reason = None
 
     def play(self, routine, quant=None):
+        if callable(routine):
+            routine = routine()
+
         when = self.beats()
         if quant:
             when = math.ceil(when / quant) * quant
