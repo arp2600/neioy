@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 
 @dataclass(order=True)
-class ScheduledEvent:
+class _ScheduledEvent:
     scheduled_time: int
     event: Any = field(compare=False)
 
@@ -34,8 +34,9 @@ class TempoClock:
         # the last event to process.
         self._finished_routines = threading.Event()
 
-        t = Thread(target=lambda: self._run(), daemon=True)
-        t.start()
+        self._stop_thread = threading.Event()
+        self._thread = Thread(target=lambda: self._run(), daemon=True)
+        self._thread.start()
 
     def set_tempo(self, tempo):
         self._ref_beats = self.elapsed_beats()
@@ -61,7 +62,7 @@ class TempoClock:
             None
 
     def _add_event(self, beats, event):
-        self._routines.put(ScheduledEvent(beats, event))
+        self._routines.put(_ScheduledEvent(beats, event))
         self._finished_routines.clear()
 
     def _process_event(self, event):
@@ -82,10 +83,9 @@ class TempoClock:
             self._add_event(self._beats + yielded_time, event.event)
 
     def _run(self):
-        print("TempoClock._run")
         next_event = None
 
-        while True:
+        while not self._stop_thread.is_set():
             if not next_event:
                 next_event = self._get_next_event()
 
@@ -124,3 +124,7 @@ class TempoClock:
 
     def wait(self):
         self._finished_routines.wait()
+
+    def stop(self):
+        self._stop_thread.set()
+        self._thread.join()
