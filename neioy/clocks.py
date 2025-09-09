@@ -1,3 +1,4 @@
+import supriya
 import time
 import queue
 from dataclasses import dataclass, field
@@ -16,9 +17,24 @@ class _ScheduledEvent:
     event: Any = field(compare=False)
 
 
+@contextmanager
+def _dummy_context(clock):
+    yield None
+
+
+def _create_server_context(server):
+
+    @contextmanager
+    def _server_context(clock):
+        with server.at(seconds=clock.time() + 0.1):
+            yield None
+
+    return _server_context
+
+
 class TempoClock:
 
-    def __init__(self, tempo=2.0):
+    def __init__(self, tempo=2.0, context=_dummy_context):
         self._tempo = tempo
         self._ref_time = time.time()
         self._ref_beats = 0
@@ -34,9 +50,17 @@ class TempoClock:
         # the last event to process.
         self._finished_routines = threading.Event()
 
+        self.set_context(context)
+
         self._stop_thread = threading.Event()
         self._thread = Thread(target=lambda: self._run(), daemon=True)
         self._thread.start()
+
+    def set_context(self, context):
+        if isinstance(context, supriya.Server):
+            self.context = _create_server_context(context)
+        else:
+            self.context = context
 
     def set_tempo(self, tempo):
         self._ref_beats = self.elapsed_beats()
@@ -69,11 +93,8 @@ class TempoClock:
         try:
             yielded_time = next(event.event)
         except StopIteration:
-            if self._routines.empty():
-                self._finished_routines.set()
+            pass
         except Exception as e:
-            if self._routines.empty():
-                self._finished_routines.set()
             # Print the exception that happened in the routine but we don't want
             # the clock to stop running.
             traceback.print_exception(e)
@@ -89,11 +110,32 @@ class TempoClock:
             if not next_event:
                 next_event = self._get_next_event()
 
+            # collect events which should be processed
+            to_process = []
             if next_event and self.elapsed_beats() > next_event.scheduled_time:
-                self._beats = next_event.scheduled_time
-                self._process_event(next_event)
-                next_event = None
+                when = next_event.scheduled_time
+                to_process.append(next_event)
+                next_event = self._get_next_event()
+
+                # because the context could be making a timestamped bundle, we don't just
+                # want to collect all the event where
+                # `self.elapsed_beats() > next_event.scheduled_time`, we want to collect
+                # all the event with EXACTLY the same scheduled_time as the first event.
+                while next_event and next_event.scheduled_time == when:
+                    to_process.append(next_event)
+                    next_event = self._get_next_event()
+
+            if to_process:
+                # process the collected events
+                with self.context(self):
+                    for event in to_process:
+                        self._beats = event.scheduled_time
+                        self._process_event(event)
+
+                if next_event is None and self._routines.empty():
+                    self._finished_routines.set()
             else:
+                # advance self._beats
                 self._beats = self.elapsed_beats()
 
     # There are situations where yielding can cause
