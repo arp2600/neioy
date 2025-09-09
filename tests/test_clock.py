@@ -198,8 +198,8 @@ def test_contexts(tempo_clock):
     tempo_clock.set_context(test_context)
 
     when = tempo_clock.beats() + 0.5
-    tempo_clock.sched(r1(), when)
-    tempo_clock.sched(r2(), when)
+    tempo_clock.sched_abs(r1(), when)
+    tempo_clock.sched_abs(r2(), when)
 
     tempo_clock.wait()
 
