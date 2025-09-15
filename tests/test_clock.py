@@ -218,3 +218,19 @@ def test_contexts(tempo_clock):
         '2.2',
         'exit',
     ]
+
+
+def test_sleep(tempo_clock):
+    start = tempo_clock.beats()
+    elapsed = tempo_clock.beats() - start
+    assert 0.0 <= elapsed < 0.1
+
+    start = tempo_clock.beats()
+    tempo_clock.sleep(1.0)
+    elapsed = tempo_clock.beats() - start
+    assert 0.9 < elapsed < 1.1
+
+    start = tempo_clock.beats()
+    tempo_clock.sleep(2.0)
+    elapsed = tempo_clock.beats() - start
+    assert 1.9 < elapsed < 2.1

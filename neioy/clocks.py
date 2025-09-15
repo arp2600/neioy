@@ -79,6 +79,11 @@ class TempoClock:
     def time(self):
         return self.beats2seconds(self.beats())
 
+    def sleep(self, duration):
+        now = self.beats()
+        while self.beats() - now < duration:
+            pass
+
     def _get_next_event(self):
         if not self._routines.empty():
             return self._routines.get()
