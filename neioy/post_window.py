@@ -1,6 +1,9 @@
 import argparse
 import socket
 
+IP_ADDRESS = "127.0.0.1"
+PORT = 20001
+
 
 def _parse_args():
     parser = argparse.ArgumentParser()
@@ -9,30 +12,21 @@ def _parse_args():
 
 
 def post(message):
-    bytesToSend         = str(message).encode()
-    serverAddressPort   = ("127.0.0.1", 20001)
-    bufferSize          = 1024
-    
-    UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    UDPClientSocket.sendto(bytesToSend, serverAddressPort)
-    
+    socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM).sendto(
+        str(message).encode(), (IP_ADDRESS, PORT))
 
 
 def _start_server(args):
-    localIP     = "127.0.0.1"
-    localPort   = 20001
-    bufferSize  = 1024
-
-    UDPServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    UDPServerSocket.bind((localIP, localPort))
-    
+    udp_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    udp_socket.bind((IP_ADDRESS, PORT))
     print("UDP server up and listening")
+
     # Listen for incoming datagrams
-    while(True):
-        bytesAddressPair = UDPServerSocket.recvfrom(bufferSize)
-        message = bytesAddressPair[0]
+    while (True):
+        buffer_size = 1024
+        message, address = udp_socket.recvfrom(buffer_size)
         print(message.decode('utf-8'))
-    
+
 
 def _main():
     args = _parse_args()
