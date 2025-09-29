@@ -8,6 +8,7 @@ import threading
 import math
 import sys
 import traceback
+import bisect
 from contextlib import contextmanager
 
 
@@ -170,3 +171,82 @@ class TempoClock:
     def stop(self):
         self._stop_thread.set()
         self._thread.join()
+
+
+class NonBlockingTempoClock:
+
+    def __init__(self, tempo=2.0):
+        self._tempo = tempo
+        self._ref_time = time.time()
+        self._ref_beats = 0
+        self._beats = 0
+
+        self._events = []
+
+    def set_tempo(self, tempo):
+        self._ref_beats = self.elapsed_beats()
+        self._ref_time = time.time()
+        self._tempo = tempo
+
+    def elapsed_beats(self):
+        return (time.time() - self._ref_time) * self._tempo + self._ref_beats
+
+    def beats(self):
+        return self._beats
+
+    def beats2seconds(self, beats):
+        return ((beats - self._ref_beats) / self._tempo) + self._ref_time
+
+    def time(self):
+        return self.beats2seconds(self.beats())
+
+    def sleep(self, duration):
+        now = self.beats()
+        while self.beats() - now < duration:
+            pass
+
+    def _add_event(self, beats, event):
+        bisect.insort(self._events,
+                      _ScheduledEvent(beats, event),
+                      key=lambda x: -x.scheduled_time)
+
+    def _process_event(self, event):
+        try:
+            yielded_time = next(event.event)
+        except StopIteration:
+            pass
+        except Exception as e:
+            # Print the exception that happened in the routine but we don't want
+            # the clock to stop running.
+            traceback.print_exception(e)
+        else:
+            self._add_event(self._beats + yielded_time, event.event)
+
+    def update(self):
+        while self._events:
+            event = self._events[-1]
+
+            if self.elapsed_beats() < event.scheduled_time:
+                return
+
+            # Process the event and remove it from self._events.
+            self._events.pop()
+            self._beats = event.scheduled_time
+            self._process_event(event)
+
+        self._beats = self.elapsed_beats()
+
+    def play(self, routine, quant=None):
+        if callable(routine):
+            routine = routine()
+
+        when = self.beats()
+        if quant:
+            when = math.ceil(when / quant) * quant
+        self._add_event(when, routine)
+
+    def sched_abs(self, routine, when):
+        self._add_event(when, routine)
+
+    def sched(self, routine, delta):
+        self.sched_abs(routine, self.beats() + delta)
