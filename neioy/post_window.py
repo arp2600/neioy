@@ -14,7 +14,7 @@ def _parse_args():
 
 def post(message, end='\n'):
     socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM).sendto(
-        str(message + end).encode(), (IP_ADDRESS, PORT))
+        (str(message) + end).encode(), (IP_ADDRESS, PORT))
 
 
 def _start_server(args):
