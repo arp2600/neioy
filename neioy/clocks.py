@@ -17,24 +17,28 @@ class _ScheduledEvent:
     event: Any = field(compare=False)
 
 
-@contextmanager
-def _dummy_context(clock):
-    yield None
+def server_at(latency=0.1):
 
+    def deco(func):
 
-def _create_server_context(server):
+        def wrapper(server, clock, *args, **kwargs):
+            genny = func(*args, **kwargs)
+            while True:
+                with server.at(seconds=clock.time() + latency):
+                    try:
+                        t = next(genny)
+                    except StopIteration:
+                        return
+                yield t
 
-    @contextmanager
-    def _server_context(clock):
-        with server.at(seconds=clock.time() + 0.1):
-            yield None
+        return wrapper
 
-    return _server_context
+    return deco
 
 
 class TempoClock:
 
-    def __init__(self, tempo=2.0, context=_dummy_context):
+    def __init__(self, tempo=2.0):
         self._tempo = tempo
         self._ref_time = time.time()
         self._ref_beats = 0
@@ -50,17 +54,9 @@ class TempoClock:
         # the last event to process.
         self._finished_routines = threading.Event()
 
-        self.set_context(context)
-
         self._stop_thread = threading.Event()
         self._thread = Thread(target=lambda: self._run(), daemon=True)
         self._thread.start()
-
-    def set_context(self, context):
-        if isinstance(context, supriya.Server):
-            self.context = _create_server_context(context)
-        else:
-            self.context = context
 
     def set_tempo(self, tempo):
         self._ref_beats = self.elapsed_beats()
@@ -132,10 +128,9 @@ class TempoClock:
 
             if to_process:
                 # process the collected events
-                with self.context(self):
-                    for event in to_process:
-                        self._beats = event.scheduled_time
-                        self._process_event(event)
+                for event in to_process:
+                    self._beats = event.scheduled_time
+                    self._process_event(event)
 
                 if next_event is None and self._routines.empty():
                     self._finished_routines.set()

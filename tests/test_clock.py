@@ -176,50 +176,6 @@ def test_exceptions(tempo_clock):
     assert x == [0, 2, 3, 4, 5]
 
 
-def test_contexts(tempo_clock):
-    x = []
-
-    @contextmanager
-    def test_context(clock):
-        x.append('enter')
-        yield None
-        x.append('exit')
-
-    def r1():
-        x.append('1.1')
-        yield 0.1
-        x.append('1.2')
-
-    def r2():
-        x.append('2.1')
-        yield 0.2
-        x.append('2.2')
-
-    tempo_clock.set_context(test_context)
-
-    when = tempo_clock.beats() + 0.5
-    tempo_clock.sched_abs(r1(), when)
-    tempo_clock.sched_abs(r2(), when)
-
-    tempo_clock.wait()
-
-    assert x == [
-        # first context call, both r1 and r2 are scheduled
-        'enter',
-        '1.1',
-        '2.1',
-        'exit',
-        # second context just r1 is scheduled
-        'enter',
-        '1.2',
-        'exit',
-        # third context just r2 is scheduled
-        'enter',
-        '2.2',
-        'exit',
-    ]
-
-
 def test_sleep(tempo_clock):
     start = tempo_clock.beats()
     elapsed = tempo_clock.beats() - start
