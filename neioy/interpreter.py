@@ -176,8 +176,9 @@ class Interpreter:
             raise SystemExit(x)
 
         if locals is None:
-            locals = []
-        locals['exit'] = _raise_system_exit
+            locals = {}
+        if 'exit' not in locals:
+            locals['exit'] = _raise_system_exit
 
         self._interpreter = code.InteractiveInterpreter(locals=locals)
         self._prompt(self.ps1)
