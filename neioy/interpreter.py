@@ -166,25 +166,20 @@ class Interpreter:
         self.ps1 = '>>> '
         self.ps2 = '... '
 
-        self._tty_attrs = tty.setcbreak(sys.stdin.fileno())
-
-        self._tty_attrs = tty.setcbreak(sys.stdin.fileno())
-        tty_attrs = termios.tcgetattr(sys.stdin.fileno())
-        tty_attrs[3] &= ~termios.ISIG
-        tty_attrs = termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, tty_attrs)
+        self._setup_tty()
 
         # Enable bracketed paste
         Terminal.enable_bracketed_paste()
         self._bracketed_paste = False
 
-        # Override exit so we can do any shut down we need to after the interpreter has closed.
-        def _raise_system_exit(x=1):
-            raise SystemExit(x)
-
         if locals is None:
             locals = {}
         if 'exit' not in locals:
-            locals['exit'] = _raise_system_exit
+            # Override exit so we can do any shut down we need to after the interpreter has closed.
+            def raise_system_exit(x=1):
+                raise SystemExit(x)
+
+            locals['exit'] = raise_system_exit
 
         self._interpreter = code.InteractiveInterpreter(locals=locals)
         self._prompt(self.ps1)
@@ -193,6 +188,16 @@ class Interpreter:
         self._reset_input_buffer()
 
         self._update_generator = self._update()
+
+    def _setup_tty(self):
+        # Set cbreak and save the previous tty attributes to reset the program after exit.
+        self._tty_attrs = tty.setcbreak(sys.stdin.fileno())
+
+        # Disabling ISIG allows us to handle ctrl-c.
+        tty_attrs = termios.tcgetattr(sys.stdin.fileno())
+        tty_attrs[3] &= ~termios.ISIG
+        tty_attrs = termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW,
+                                      tty_attrs)
 
     def _reset_input_buffer(self):
         self._input = TextEditor()
@@ -287,6 +292,11 @@ class Interpreter:
                 self._input.insert(char)
                 sys.stdout.write(char)
 
+                rest = self._input.get_line_after_cursor()
+                if rest:
+                    sys.stdout.write(rest)
+                    Terminal.move_cursor_left(len(rest))
+
             if char == '\n':
                 if self._bracketed_paste:
                     self._prompt(self.ps2)
@@ -322,10 +332,8 @@ class Interpreter:
                 else:
                     self._prompt(self.ps2)
             except SystemExit as e:
-                # can do any cleanup we need to here
-                # call the actual exit function
                 self._reset_term()
-                exit(e.code)
+                raise e
 
     def update(self):
         next(self._update_generator)

@@ -4,6 +4,7 @@ import threading
 import tkinter as tk
 import queue
 import time
+import supriya
 from icecream import ic
 from functools import partial
 from neioy.interpreter import Interpreter
@@ -38,25 +39,36 @@ def rt_thread_func(_locals, exit_main):
     def rt_func(func):
         return partial(rt_func_handler.put, func.__name__, func)
 
-    def _exit(v=0):
-        """Override of `exit` for the interpreter."""
-        exit_main(v)  # Call exit on the gui thread.
-        raise SystemExit(v)  # Raise SystemExit to exit the interpreter.
-
     clock = NonBlockingTempoClock()
+    server = supriya.Server().boot()
 
     # copy _locals before writing to it
     _locals = {i: v for i, v in _locals.items()}
     _locals['clock'] = clock
     _locals['rt_func'] = rt_func
-    _locals['exit'] = _exit
+    _locals['server'] = server
 
     x = Interpreter(locals=_locals)
     while True:
-        x.update()
+        try:
+            x.update()
+        except SystemExit as e:
+            print(f'Exiting from repl...')
+            exit_code = e.code
+            break
+
         clock.update()
         while not rt_func_handler.empty():
             rt_func_handler.exec()
+
+    if server.is_owner:
+        print('Quitting server...')
+        server.quit()
+    else:
+        print('Disconnecting from server...')
+        server.disconnect()
+
+    exit_main(exit_code)
 
 
 def main():
@@ -77,7 +89,7 @@ def main():
         start_gui_flag = True
 
     @gui_func
-    def _exit_gui(v=0):
+    def exit_main(v=0):
         """Call `exit` on the gui thread."""
         time.sleep(0.1)
         exit(v)
@@ -86,7 +98,7 @@ def main():
     rt_thread = threading.Thread(target=rt_thread_func,
                                  kwargs={
                                      '_locals': _locals,
-                                     'exit_main': _exit_gui
+                                     'exit_main': exit_main
                                  })
     rt_thread.start()
 
