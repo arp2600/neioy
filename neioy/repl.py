@@ -14,7 +14,7 @@ class FuncQueue:
     def __init__(self):
         self._func_queue = queue.Queue()
 
-    def exec_func(self):
+    def exec(self):
         name, func = self._func_queue.get()
         try:
             func()
@@ -22,9 +22,8 @@ class FuncQueue:
             print(f"Exception encountered when running gui_func '{name}'")
             traceback.print_exception(e)
 
-    def exec_available_funcs(self):
-        while not self._func_queue.empty():
-            self.exec_func()
+    def empty(self):
+        return self._func_queue.empty()
 
     def put(self, name, func, *args, **kwargs):
         self._func_queue.put((name, lambda: func(*args, **kwargs)))
@@ -55,7 +54,8 @@ def rt_thread_func(_locals, exit_main):
     while True:
         x.update()
         clock.update()
-        rt_func_handler.exec_available_funcs()
+        while not rt_func_handler.empty():
+            rt_func_handler.exec()
 
 
 def main():
@@ -89,10 +89,11 @@ def main():
     rt_thread.start()
 
     while not start_gui_flag:
-        gui_func_handler.exec_func()
+        gui_func_handler.exec()
 
     def run_gui_funcs():
-        gui_func_handler.exec_available_funcs()
+        while not gui_func_handler.empty():
+            gui_func_handler.exec()
         root.after(1000 // 60, run_gui_funcs)
 
     run_gui_funcs()
