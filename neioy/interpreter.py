@@ -3,7 +3,6 @@ import sys
 import os
 import tty
 import termios
-from functools import partial
 
 
 class TextEditor:
@@ -167,7 +166,12 @@ class Interpreter:
         self.ps1 = '>>> '
         self.ps2 = '... '
 
-        self._tty_attrs = tty.setraw(sys.stdin.fileno())
+        self._tty_attrs = tty.setcbreak(sys.stdin.fileno())
+
+        self._tty_attrs = tty.setcbreak(sys.stdin.fileno())
+        tty_attrs = termios.tcgetattr(sys.stdin.fileno())
+        tty_attrs[3] &= ~termios.ISIG
+        tty_attrs = termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, tty_attrs)
 
         # Enable bracketed paste
         Terminal.enable_bracketed_paste()
@@ -260,7 +264,7 @@ class Interpreter:
             if char == '\x1b':
                 yield from self._handle_escape_sequence()
             elif char == '\x03':  # ctrl-c
-                sys.stdout.write('\n\rKeyboardInterrupt\n\r')
+                sys.stdout.write('\nKeyboardInterrupt\n')
                 self._reset_input_buffer()
                 self._prompt(self.ps1)
             elif ord(char) == 0x7f:
@@ -278,15 +282,12 @@ class Interpreter:
                 for _ in range(4):
                     self._input.insert(' ')
                     sys.stdout.write(' ')
-            elif char == '\r':
-                self._input.insert('\n')
-                sys.stdout.write('\n\r')
             else:
                 # add a character at the cursor index
                 self._input.insert(char)
                 sys.stdout.write(char)
 
-            if char in '\n\r':
+            if char == '\n':
                 if self._bracketed_paste:
                     self._prompt(self.ps2)
                 else:
@@ -315,14 +316,10 @@ class Interpreter:
                 symbol = 'single'
                 if source.find('\n') != len(source) - 1:
                     symbol = 'exec'
-
-                self._reset_term()
                 if not self._interpreter.runsource(source, symbol=symbol):
                     self._reset_input_buffer()
-                    tty.setraw(sys.stdin.fileno())
                     self._prompt(self.ps1)
                 else:
-                    tty.setraw(sys.stdin.fileno())
                     self._prompt(self.ps2)
             except SystemExit as e:
                 # can do any cleanup we need to here
