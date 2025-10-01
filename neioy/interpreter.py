@@ -181,10 +181,6 @@ class Interpreter:
             locals = {}
         if 'exit' not in locals:
             locals['exit'] = _raise_system_exit
-        if 'print' not in locals:
-            # As the terminal is set to raw, we need to print \r after \n to move the
-            # cursor to the start of the line.
-            locals['print'] = partial(print, end='\n\r')
 
         self._interpreter = code.InteractiveInterpreter(locals=locals)
         self._prompt(self.ps1)
@@ -300,6 +296,10 @@ class Interpreter:
         sys.stdout.write(prompt_str)
         sys.stdout.flush()
 
+    def _reset_term(self):
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
+                          self._tty_attrs)
+
     def _update(self):
         source = ''
         while True:
@@ -315,16 +315,19 @@ class Interpreter:
                 symbol = 'single'
                 if source.find('\n') != len(source) - 1:
                     symbol = 'exec'
+
+                self._reset_term()
                 if not self._interpreter.runsource(source, symbol=symbol):
                     self._reset_input_buffer()
+                    tty.setraw(sys.stdin.fileno())
                     self._prompt(self.ps1)
                 else:
+                    tty.setraw(sys.stdin.fileno())
                     self._prompt(self.ps2)
             except SystemExit as e:
                 # can do any cleanup we need to here
                 # call the actual exit function
-                termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
-                                  self._tty_attrs)
+                self._reset_term()
                 exit(e.code)
 
     def update(self):
