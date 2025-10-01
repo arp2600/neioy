@@ -2,6 +2,8 @@ import code
 import sys
 import os
 import tty
+import termios
+from functools import partial
 
 
 class TextEditor:
@@ -165,7 +167,7 @@ class Interpreter:
         self.ps1 = '>>> '
         self.ps2 = '... '
 
-        tty.setcbreak(sys.stdin.fileno())
+        self._tty_attrs = tty.setraw(sys.stdin.fileno())
 
         # Enable bracketed paste
         Terminal.enable_bracketed_paste()
@@ -179,6 +181,10 @@ class Interpreter:
             locals = {}
         if 'exit' not in locals:
             locals['exit'] = _raise_system_exit
+        if 'print' not in locals:
+            # As the terminal is set to raw, we need to print \r after \n to move the
+            # cursor to the start of the line.
+            locals['print'] = partial(print, end='\n\r')
 
         self._interpreter = code.InteractiveInterpreter(locals=locals)
         self._prompt(self.ps1)
@@ -257,6 +263,10 @@ class Interpreter:
 
             if char == '\x1b':
                 yield from self._handle_escape_sequence()
+            elif char == '\x03':  # ctrl-c
+                sys.stdout.write('\n\rKeyboardInterrupt\n\r')
+                self._reset_input_buffer()
+                self._prompt(self.ps1)
             elif ord(char) == 0x7f:
                 self._input.move_left(1)
                 self._input.pop()
@@ -272,12 +282,15 @@ class Interpreter:
                 for _ in range(4):
                     self._input.insert(' ')
                     sys.stdout.write(' ')
+            elif char == '\r':
+                self._input.insert('\n')
+                sys.stdout.write('\n\r')
             else:
                 # add a character at the cursor index
                 self._input.insert(char)
                 sys.stdout.write(char)
 
-            if char == '\n':
+            if char in '\n\r':
                 if self._bracketed_paste:
                     self._prompt(self.ps2)
                 else:
@@ -310,6 +323,8 @@ class Interpreter:
             except SystemExit as e:
                 # can do any cleanup we need to here
                 # call the actual exit function
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
+                                  self._tty_attrs)
                 exit(e.code)
 
     def update(self):

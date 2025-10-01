@@ -3,6 +3,7 @@ import traceback
 import threading
 import tkinter as tk
 import queue
+import time
 from icecream import ic
 from functools import partial
 from neioy.interpreter import Interpreter
@@ -78,6 +79,7 @@ def main():
     @gui_func
     def _exit_gui(v=0):
         """Call `exit` on the gui thread."""
+        time.sleep(0.1)
         exit(v)
 
     _locals = {'start_gui': start_gui, 'gui_func': gui_func, 'root': root}
