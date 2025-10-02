@@ -1,8 +1,9 @@
-import code
 import sys
 import os
 import tty
 import termios
+from codeop import CommandCompiler
+from post_window import post
 
 
 class TextEditor:
@@ -180,12 +181,14 @@ class Interpreter:
                 raise SystemExit(x)
 
             locals['exit'] = raise_system_exit
+        self._locals = locals
 
-        self._interpreter = code.InteractiveInterpreter(locals=locals)
         self._prompt(self.ps1)
 
         self._chars = ''
         self._reset_input_buffer()
+
+        self._compile = CommandCompiler()
 
         self._run_generator = self._run()
 
@@ -297,6 +300,12 @@ class Interpreter:
             sys.stdout.write(rest)
             Terminal.move_cursor_left(len(rest))
 
+    def _handle_newline(self):
+        if self._bracketed_paste:
+            self._prompt(self.ps2)
+        else:
+            self._try_run_source()
+
     def _run(self):
         while True:
             char = yield from self._get_char()
@@ -309,14 +318,10 @@ class Interpreter:
                 self._handle_backspace()
             elif char == '\t':
                 self._handle_tab()
+            elif char == '\n':
+                self._handle_newline()
             else:
                 self._handle_character(char)
-
-            if char == '\n':
-                if self._bracketed_paste:
-                    self._prompt(self.ps2)
-                else:
-                    self._try_run_source()
 
     def _prompt(self, prompt_str):
         sys.stdout.write(prompt_str)
@@ -329,22 +334,41 @@ class Interpreter:
     def _try_run_source(self):
         source = str(self._input)
         lines = source.splitlines()
-        if len(lines) > 1 and len(lines[-1]) > 0 and lines[-1][0] in ' \t':
+
+        if len(lines) > 1 and not source.endswith('\n'):
+            self._input.insert('\n')
+            sys.stdout.write('\n')
             self._prompt(self.ps2)
             return
+
+        post(f'{source.encode("utf-8")}')
 
         try:
             symbol = 'single'
             if source.find('\n') != len(source) - 1:
                 symbol = 'exec'
-            if not self._interpreter.runsource(source, symbol=symbol):
-                self._reset_input_buffer()
-                self._prompt(self.ps1)
-            else:
+
+            code = self._compile(source, symbol=symbol)
+            if code is None:
+                self._input.insert('\n')
+                sys.stdout.write('\n')
                 self._prompt(self.ps2)
+                return
+        except (OverflowError, SyntaxError, ValueError):
+            sys.stdout.write(f'\nsyntax error\n')
+            self._reset_input_buffer()
+            self._prompt(self.ps1)
+            return
+
+        sys.stdout.write('\n')
+        try:
+            exec(code, self._locals)
         except SystemExit as e:
             self._reset_term()
             raise e
+
+        self._reset_input_buffer()
+        self._prompt(self.ps1)
 
     def update(self):
         next(self._run_generator)
