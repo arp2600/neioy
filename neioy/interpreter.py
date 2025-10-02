@@ -187,7 +187,7 @@ class Interpreter:
         self._chars = ''
         self._reset_input_buffer()
 
-        self._update_generator = self._update()
+        self._run_generator = self._run()
 
     def _setup_tty(self):
         # Set cbreak and save the previous tty attributes to reset the program after exit.
@@ -252,56 +252,71 @@ class Interpreter:
         while not self._chars:
             # Read from stdin without blocking
             os.set_blocking(sys.stdin.fileno(), False)
-            self._chars += sys.stdin.read(100)
+            self._chars = sys.stdin.read(100)
             os.set_blocking(sys.stdin.fileno(), True)
 
-            sys.stdout.flush()
-            yield
+            if self._chars:
+                break
+            else:
+                sys.stdout.flush()
+                yield
 
         x = self._chars[0]
         self._chars = self._chars[1:]
         return x
 
-    def _handle_input(self):
+    def _handle_ctrl_c(self):
+        sys.stdout.write('\nKeyboardInterrupt\n')
+        self._reset_input_buffer()
+        self._prompt(self.ps1)
+
+    def _handle_backspace(self):
+        self._input.move_left(1)
+        self._input.pop()
+
+        # step left and erase to the end of the line
+        Terminal.move_cursor_left()
+        Terminal.erase_from_cursor_to_end_of_line()
+        rest = self._input.get_line_after_cursor()
+        if rest:
+            sys.stdout.write(rest)
+            Terminal.move_cursor_left(len(rest))
+
+    def _handle_tab(self):
+        for _ in range(4):
+            self._input.insert(' ')
+            sys.stdout.write(' ')
+
+    def _handle_character(self, char):
+        # add a character at the cursor index
+        self._input.insert(char)
+        sys.stdout.write(char)
+
+        rest = self._input.get_line_after_cursor()
+        if rest:
+            sys.stdout.write(rest)
+            Terminal.move_cursor_left(len(rest))
+
+    def _run(self):
         while True:
             char = yield from self._get_char()
 
             if char == '\x1b':
                 yield from self._handle_escape_sequence()
             elif char == '\x03':  # ctrl-c
-                sys.stdout.write('\nKeyboardInterrupt\n')
-                self._reset_input_buffer()
-                self._prompt(self.ps1)
+                self._handle_ctrl_c()
             elif ord(char) == 0x7f:
-                self._input.move_left(1)
-                self._input.pop()
-
-                # step left and erase to the end of the line
-                Terminal.move_cursor_left()
-                Terminal.erase_from_cursor_to_end_of_line()
-                rest = self._input.get_line_after_cursor()
-                if rest:
-                    sys.stdout.write(rest)
-                    Terminal.move_cursor_left(len(rest))
+                self._handle_backspace()
             elif char == '\t':
-                for _ in range(4):
-                    self._input.insert(' ')
-                    sys.stdout.write(' ')
+                self._handle_tab()
             else:
-                # add a character at the cursor index
-                self._input.insert(char)
-                sys.stdout.write(char)
-
-                rest = self._input.get_line_after_cursor()
-                if rest:
-                    sys.stdout.write(rest)
-                    Terminal.move_cursor_left(len(rest))
+                self._handle_character(char)
 
             if char == '\n':
                 if self._bracketed_paste:
                     self._prompt(self.ps2)
                 else:
-                    return
+                    self._try_run_source()
 
     def _prompt(self, prompt_str):
         sys.stdout.write(prompt_str)
@@ -311,29 +326,41 @@ class Interpreter:
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
                           self._tty_attrs)
 
-    def _update(self):
-        source = ''
-        while True:
-            yield from self._handle_input()
+    def _try_run_source(self):
+        source = str(self._input)
+        lines = source.splitlines()
+        if len(lines) > 1 and len(lines[-1]) > 0 and lines[-1][0] in ' \t':
+            self._prompt(self.ps2)
+            return
 
-            source = str(self._input)
-            lines = source.splitlines()
-            if len(lines) > 1 and len(lines[-1]) > 0 and lines[-1][0] in ' \t':
+        try:
+            symbol = 'single'
+            if source.find('\n') != len(source) - 1:
+                symbol = 'exec'
+            if not self._interpreter.runsource(source, symbol=symbol):
+                self._reset_input_buffer()
+                self._prompt(self.ps1)
+            else:
                 self._prompt(self.ps2)
-                continue
-
-            try:
-                symbol = 'single'
-                if source.find('\n') != len(source) - 1:
-                    symbol = 'exec'
-                if not self._interpreter.runsource(source, symbol=symbol):
-                    self._reset_input_buffer()
-                    self._prompt(self.ps1)
-                else:
-                    self._prompt(self.ps2)
-            except SystemExit as e:
-                self._reset_term()
-                raise e
+        except SystemExit as e:
+            self._reset_term()
+            raise e
 
     def update(self):
-        next(self._update_generator)
+        next(self._run_generator)
+
+
+def main():
+    import time
+
+    x = Interpreter()
+    while True:
+        try:
+            x.update()
+        except SystemExit as e:
+            break
+        time.sleep(1 / 30)
+
+
+if __name__ == '__main__':
+    main()
