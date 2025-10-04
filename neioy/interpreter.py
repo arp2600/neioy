@@ -2,8 +2,18 @@ import sys
 import os
 import tty
 import termios
+import time
+import subprocess
+import io
+from tempfile import NamedTemporaryFile
 from codeop import CommandCompiler
-from post_window import post
+from icecream import ic
+try:
+    from post_window import post
+except ModuleNotFoundError:
+
+    def post(*args, **kwargs):
+        pass
 
 
 class TextEditor:
@@ -27,6 +37,11 @@ class TextEditor:
         end = self._end_of_line_index(self._cursor)
         return ''.join(self._text[self._cursor:end])
 
+    def get_line(self):
+        start = self._start_of_line_index(self._cursor - 1)
+        end = self._end_of_line_index(self._cursor)
+        return ''.join(self._text[start:end])
+
     def insert(self, char):
         self._text.insert(self._cursor, char)
         self._cursor += 1
@@ -36,6 +51,7 @@ class TextEditor:
             start = len(self._text) - 1
 
         for i in range(start, stop, -1):
+            ic(i)
             if self._text[i] == value:
                 return i
 
@@ -69,6 +85,9 @@ class TextEditor:
             row += 1
             x = self._start_of_line_index(x - 1)
         return (row, column)
+
+    def get_column(self):
+        return self.get_row_and_column()[1]
 
     def move_up(self, amount):
         if self._cursor == 0:
@@ -129,36 +148,125 @@ class TextEditor:
 class Terminal:
 
     @staticmethod
-    def enable_bracketed_paste():
-        sys.stdout.write("\x1b[?2004h")
-        sys.stdout.flush()
+    def enable_bracketed_paste(ostream=sys.stdout):
+        ostream.write("\x1b[?2004h")
+        ostream.flush()
 
     @staticmethod
-    def _move_cursor(direction_code, amount):
+    def _move_cursor(direction_code, amount, ostream):
         if amount == 1:
-            sys.stdout.write(f'\x1b[{direction_code}')
+            ostream.write(f'\x1b[{direction_code}')
         else:
-            sys.stdout.write(f'\x1b[{amount}{direction_code}')
+            ostream.write(f'\x1b[{amount}{direction_code}')
 
     @staticmethod
-    def move_cursor_left(amount=1):
-        Terminal._move_cursor('D', amount)
+    def move_cursor_left(amount=1, ostream=sys.stdout):
+        Terminal._move_cursor('D', amount, ostream)
 
     @staticmethod
-    def move_cursor_right(amount=1):
-        Terminal._move_cursor('C', amount)
+    def move_cursor_right(amount=1, ostream=sys.stdout):
+        Terminal._move_cursor('C', amount, ostream)
 
     @staticmethod
-    def move_cursor_up(amount=1):
-        Terminal._move_cursor('A', amount)
+    def move_cursor_up(amount=1, ostream=sys.stdout):
+        Terminal._move_cursor('A', amount, ostream)
 
     @staticmethod
-    def move_cursor_down(amount=1):
-        Terminal._move_cursor('B', amount)
+    def move_cursor_down(amount=1, ostream=sys.stdout):
+        Terminal._move_cursor('B', amount, ostream)
 
     @staticmethod
-    def erase_from_cursor_to_end_of_line():
-        sys.stdout.write('\x1b[0K')
+    def erase_from_cursor_to_end_of_line(ostream=sys.stdout):
+        ostream.write('\x1b[0K')
+
+
+class EditField:
+
+    def __init__(self, ps1='>>> ', ps2='... ', ostream=sys.stdout):
+        self.ps1 = ps1
+        self.ps2 = ps2
+        self._prompts = [ps1]
+        self._text = TextEditor()
+        self._ostream = ostream
+
+        self._row = 0
+        self._column = 0
+
+        self._write_prompt(self.ps1)
+        self._flush()
+
+    def _write_prompt(self, prompt):
+        self._prompts.append(prompt)
+        self._column += len(prompt)
+        self._ostream.write(prompt)
+
+    def _flush(self):
+        self._ostream.flush()
+
+    def _move_cursor_left(self, amount):
+        Terminal.move_cursor_left(amount, self._ostream)
+        self._column -= amount
+
+    def _redraw_line(self):
+        save_column = self._column
+        self._move_cursor_left(self._column)
+
+        prompt = self._prompts[self._row]
+        self._write_prompt(prompt)
+
+        line = self._text.get_line()
+        self._ostream.write(line)
+        self._column + len(line)
+
+        self._move_cursor_left(self._column - save_column)
+
+        self._ostream.flush()
+
+    def insert(self, char):
+        self._text.insert(char)
+        self._column += 1
+        self._redraw_line()
+
+
+def _get_test_lines(lines):
+    for i, line in enumerate(lines):
+        if line == 'START OF TEST\n':
+            start = i + 1
+            break
+    else:
+        raise Exception("Couldn't find the start of the test")
+
+    for i, line in enumerate(lines[start:]):
+        if line == 'END OF TEST\n':
+            end = i + start
+            break
+    else:
+        raise Exception("Couldn't find the end of the test")
+
+    return lines[start:end]
+
+
+def _get_test_output(test_func):
+    with NamedTemporaryFile(mode='wt', delete_on_close=False) as f:
+        edit_field = EditField(ostream=f)
+        test_func(edit_field)
+        f.write('\n')
+        f.close()
+        subprocess.run(['tmux', '-c', f'./tmux_process.sh {f.name}'],
+                       check=True)
+
+        with open(f.name, 'rt') as f:
+            return ''.join(_get_test_lines(f.readlines()))
+
+
+def test_hello_world():
+    def test_func(edit_field):
+        for char in 'hello world':
+            edit_field.insert(char)
+
+    result = _get_test_output(test_func)
+    print(result)
+    assert result == '>>> hello world\n'
 
 
 class Interpreter:
