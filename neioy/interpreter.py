@@ -51,7 +51,6 @@ class TextEditor:
             start = len(self._text) - 1
 
         for i in range(start, stop, -1):
-            ic(i)
             if self._text[i] == value:
                 return i
 
@@ -154,6 +153,9 @@ class Terminal:
 
     @staticmethod
     def _move_cursor(direction_code, amount, ostream):
+        if amount < 0:
+            raise Exception()
+
         if amount == 1:
             ostream.write(f'\x1b[{direction_code}')
         else:
@@ -203,9 +205,13 @@ class EditField:
     def _flush(self):
         self._ostream.flush()
 
-    def _move_cursor_left(self, amount):
+    def _move_cursor_left(self, amount=1):
         Terminal.move_cursor_left(amount, self._ostream)
         self._column -= amount
+
+    def move_cursor_left(self, amount=1):
+        self._move_cursor_left(amount)
+        self._text.move_left(amount)
 
     def _redraw_line(self):
         save_column = self._column
@@ -216,7 +222,7 @@ class EditField:
 
         line = self._text.get_line()
         self._ostream.write(line)
-        self._column + len(line)
+        self._column += len(line)
 
         self._move_cursor_left(self._column - save_column)
 
@@ -260,6 +266,7 @@ def _get_test_output(test_func):
 
 
 def test_hello_world():
+
     def test_func(edit_field):
         for char in 'hello world':
             edit_field.insert(char)

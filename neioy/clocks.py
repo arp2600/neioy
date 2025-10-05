@@ -151,19 +151,19 @@ class TempoClock:
         self._dont_yield_reason = None
 
     def play(self, routine, quant=None):
-        if callable(routine):
-            routine = routine()
-
         when = self.beats()
         if quant:
             when = math.ceil(when / quant) * quant
-        self._add_event(when, routine)
-
-    def sched_abs(self, routine, when):
-        self._add_event(when, routine)
+        self.sched_abs(routine, when)
 
     def sched(self, routine, delta):
         self.sched_abs(routine, self.beats() + delta)
+
+    def sched_abs(self, routine, when):
+        if callable(routine):
+            routine = routine()
+
+        self._add_event(when, routine)
 
     def wait(self):
         self._finished_routines.wait()

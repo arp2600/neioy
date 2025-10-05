@@ -137,8 +137,10 @@ def test_passing_function_to_play(tempo_clock):
             x.append(i)
             yield 0.1
 
-    tempo_clock.play(r1())  # call tempo_clock.play with a generator
-    tempo_clock.play(r2)  # call tempo_clock.play with a function
+    # use sched_abs to ensure both routines start at exactly the same time
+    when = tempo_clock.beats() + 0.1
+    tempo_clock.sched_abs(r1(), when)  # call tempo_clock.sched_abs with a generator
+    tempo_clock.sched_abs(r2, when)  # call tempo_clock.sched_abs with a function
     tempo_clock.wait()
     assert x == [0, 1, 2, 3, 4, 5]
 
