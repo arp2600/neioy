@@ -3,94 +3,66 @@ import sys
 import time
 
 
+def show_sequence(input_string, delay=0.1):
+    print()
+    for char in input_string:
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        time.sleep(delay)
+    time.sleep(1.0)
+    print()
+
+
+def run_test(input_string, expected, column, row=0, example=None):
+    if example is not None:
+        show_sequence(input_string, delay=example)
+
+    vterm = VirtualTerminal()
+    vterm.write(input_string)
+    assert str(vterm) == expected
+    assert vterm.column == column
+    assert vterm.row == row
+
+
 def test_hello_world():
-    vterm = VirtualTerminal()
-    vterm.write('hello world')
-    assert str(vterm) == 'hello world'
-    assert vterm.column == 11
+    run_test('hello world', 'hello world', 11)
 
 
-def test_move_cursor_left():
-    vterm = VirtualTerminal()
-    vterm.write('hello world\x1b[D')
-    assert str(vterm) == 'hello world'
-    assert vterm.column == 10
+def test_move_left():
+    run_test('hello world\x1b[D', 'hello world', 10)
+    run_test('hello world\x1b[6D', 'hello world', 5)
 
-    vterm = VirtualTerminal()
-    vterm.write('hello world\x1b[6D')
-    assert str(vterm) == 'hello world'
-    assert vterm.column == 5
+    # left further than the screen
+    # move to column 0 with the 5D and then test moving once more has no effect
+    run_test('hello\x1b[5D\x1b[D', 'hello', 0)
+    # a movement further than is able to be moved will put the cursor at column 0
+    run_test('hello\x1b[8D', 'hello', 0)
+    # moving left on the second line doesn't wrap
+    run_test('hello\nworld\x1b[8D\x1b[D', 'hello\nworld', 0, 1)
 
 
-def test_move_cursor_right():
-    vterm = VirtualTerminal()
-    vterm.write('hello\x1b[Cworld')
-    assert str(vterm) == 'hello world'
-    assert vterm.column == 11
-
-    vterm = VirtualTerminal()
-    vterm.write('hello\x1b[3Cworld')
-    assert str(vterm) == 'hello   world'
-    assert vterm.column == 13
+def test_move_right():
+    run_test('hello\x1b[Cworld', 'hello world', 11)
+    run_test('hello\x1b[3Cworld', 'hello   world', 13)
 
 
 def test_newline():
     # at the end of a line
-    vterm = VirtualTerminal()
-    vterm.write('hello world\nfoo')
-    assert str(vterm) == 'hello world\nfoo'
-    assert vterm.column == 3
-    assert vterm.row == 1
-
+    run_test('hello world\nfoo', 'hello world\nfoo', 3, 1)
     # in the middle of a line
-    vterm = VirtualTerminal()
-    vterm.write('hello world\x1b[6D\nfoo')
-    assert str(vterm) == 'hello world\nfoo'
-    assert vterm.column == 3
-    assert vterm.row == 1
+    run_test('hello world\x1b[6D\nfoo', 'hello world\nfoo', 3, 1)
 
 
 def test_move_up():
-    vterm = VirtualTerminal()
-    vterm.write('fizz\nfoo bar\x1b[Abuzz')
-    assert str(vterm) == 'fizz   buzz\nfoo bar'
-    assert vterm.column == 11
-    assert vterm.row == 0
-
+    run_test('fizz\nfoo bar\x1b[Abuzz', 'fizz   buzz\nfoo bar', 11, 0)
     # test multiple moves up
-    vterm = VirtualTerminal()
-    vterm.write('foo\nbar\nfizz\x1b[2Abuzz')
-    assert str(vterm) == 'foo buzz\nbar\nfizz'
-    assert vterm.column == 8
-    assert vterm.row == 0
+    run_test('foo\nbar\nfizz\x1b[2Abuzz', 'foo buzz\nbar\nfizz', 8, 0)
 
 
 def test_move_down():
-    vterm = VirtualTerminal()
-    vterm.write('\nfoo\x1b[Abar\x1b[Bfizz')
-    assert str(vterm) == '   bar\nfoo   fizz'
-    assert vterm.column == 10
-    assert vterm.row == 1
-
+    run_test('\nfoo\x1b[Abar\x1b[Bfizz', '   bar\nfoo   fizz', 10, 1)
     # test move down multiple
-    vterm = VirtualTerminal()
-    vterm.write('foo\nbar\nfizz\x1b[2Abuzz\x1b[2Bfin')
-    assert str(vterm) == 'foo buzz\nbar\nfizz    fin'
-    assert vterm.column == 11
-    assert vterm.row == 2
-
+    run_test('foo\nbar\nfizz\x1b[2Abuzz\x1b[2Bfin',
+             'foo buzz\nbar\nfizz    fin', 11, 2)
     # test move down at bottom
-    vterm = VirtualTerminal()
-    vterm.write('foo\x1b[Bbar')
-    assert str(vterm) == 'foobar'
-    assert vterm.column == 6
-    assert vterm.row == 0
-
-
-# def test_scratch():
-#     print()
-#     for char in 'foo\x1b[Bbar':
-#     # for char in '\nfoo\x1b[Abar\x1b[Bfizz':
-#         sys.stdout.write(char)
-#         sys.stdout.flush()
-#         time.sleep(0.25)
+    run_test('foo\x1b[Bbar', 'foobar', 6, 0)
