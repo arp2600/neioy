@@ -38,7 +38,7 @@ class TextEditor:
         return ''.join(self._text[self._cursor:end])
 
     def get_line(self):
-        start = self._start_of_line_index(self._cursor - 1)
+        start = self._start_of_line_index(self._cursor)
         end = self._end_of_line_index(self._cursor)
         return ''.join(self._text[start:end])
 
@@ -153,7 +153,7 @@ class Terminal:
 
     @staticmethod
     def _move_cursor(direction_code, amount, ostream):
-        if amount < 0:
+        if amount <= 0:
             raise Exception()
 
         if amount == 1:
@@ -198,7 +198,6 @@ class EditField:
         self._flush()
 
     def _write_prompt(self, prompt):
-        self._prompts.append(prompt)
         self._column += len(prompt)
         self._ostream.write(prompt)
 
@@ -206,12 +205,28 @@ class EditField:
         self._ostream.flush()
 
     def _move_cursor_left(self, amount=1):
+        assert amount > 0
         Terminal.move_cursor_left(amount, self._ostream)
         self._column -= amount
 
     def move_cursor_left(self, amount=1):
+        assert amount > 0
         self._move_cursor_left(amount)
         self._text.move_left(amount)
+
+    def _move_cursor_down(self, amount=1):
+        assert amount > 0
+        while len(self._prompts) > (self._row + 1):
+            Terminal.move_cursor_down(amount, self._ostream)
+            self._row += amount
+            amount -= 1
+
+        while amount > 0:
+            self._ostream.write('\n')
+            self._prompts.append(self.ps2)
+            self._row += amount
+            self._column = len(self.ps2)
+            amount -= 1
 
     def _redraw_line(self):
         save_column = self._column
@@ -224,11 +239,13 @@ class EditField:
         self._ostream.write(line)
         self._column += len(line)
 
-        self._move_cursor_left(self._column - save_column)
+        if self._column != save_column:
+            self._move_cursor_left(self._column - save_column)
 
         self._ostream.flush()
-
+        
     def insert(self, char):
+        assert 0x20 <= ord(char) <= 0x7e
         self._text.insert(char)
         self._column += 1
         self._redraw_line()
@@ -236,9 +253,16 @@ class EditField:
     def backspace(self):
         self._text.move_left(1)
         self._text.pop()
-        self._column -= 1
         self._move_cursor_left()
         self._redraw_line()
+
+    def newline(self):
+        self._text.insert('\n')
+        self._move_cursor_down()
+        self._redraw_line()
+
+    def __str__(self):
+        return str(self._text)
 
 
 def _get_test_lines(lines):
