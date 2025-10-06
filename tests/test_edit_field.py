@@ -4,75 +4,81 @@ import sys
 import re
 import time
 import tty
+import pytest
 from virtual_terminal import VirtualTerminal
 
 
-def test_hello_world():
-    vterm = VirtualTerminal()
-    edit_field = EditField(ostream=vterm)
-    for char in 'hello world':
-        edit_field.insert(char)
+class _TestHarness:
 
-    print()
-    assert vterm.get_string() == '>>> hello world'
-    assert vterm.column == 15
-    assert str(edit_field) == 'hello world'
+    def __init__(self):
+        self.vterm = VirtualTerminal()
+        self.edit_field = EditField(ostream=self.vterm)
 
+    def insert(self, chars):
+        for char in chars:
+            self.edit_field.insert(char)
 
-def test_hello_world_out_of_order():
-    vterm = VirtualTerminal()
-    edit_field = EditField(ostream=vterm)
-    for char in 'world':
-        edit_field.insert(char)
-    assert vterm.column == 9
+    def move_cursor_left(self, amount=1):
+        self.edit_field.move_cursor_left(amount)
 
-    edit_field.move_cursor_left(5)
-    assert vterm.column == 4
+    def backspace(self, count=1):
+        for i in range(count):
+            self.edit_field.backspace()
 
-    for char in 'hello ':
-        edit_field.insert(char)
-    assert vterm.column == 10
+    def newline(self, count=1):
+        for i in range(count):
+            self.edit_field.newline()
 
-    print()
-    assert vterm.get_string() == '>>> hello world'
-    assert str(edit_field) == 'hello world'
+    def check_term(self, expected, column, row=0):
+        print(
+        )  # useful for preserving terminal output to manually check result
+        assert str(self.vterm) == expected
+        assert self.vterm.column == column
+        assert self.vterm.row == row
 
-
-def test_backspace():
-    vterm = VirtualTerminal()
-    edit_field = EditField(ostream=vterm)
-    for char in 'hello foo':
-        edit_field.insert(char)
-    assert vterm.column == 13
-
-    for i in range(3):
-        edit_field.backspace()
-    assert vterm.column == 10
-
-    for char in 'world':
-        edit_field.insert(char)
-    assert vterm.column == 15
-
-    print()
-    assert vterm.get_string() == '>>> hello world'
-    assert str(edit_field) == 'hello world'
+    def check_text(self, expected):
+        assert str(self.edit_field) == expected
 
 
-def test_newline():
-    vterm = VirtualTerminal()
-    edit_field = EditField(ostream=vterm)
-    for char in 'hello':
-        edit_field.insert(char)
-    assert vterm.column == 9
+@pytest.fixture
+def editor():
+    return _TestHarness()
 
-    edit_field.newline()
-    assert vterm.column == 4
-    assert vterm.row == 1
 
-    for char in 'world':
-        edit_field.insert(char)
-    assert vterm.column == 9
+def test_hello_world(editor):
+    editor.insert('hello world')
+    editor.check_term('>>> hello world', 15)
+    editor.check_text('hello world')
 
-    print()
-    assert vterm.get_string() == '>>> hello\n... world'
-    assert (str(edit_field)) == 'hello\nworld'
+
+def test_move_left_and_insert(editor):
+    editor.insert('world')
+    assert editor.vterm.column == 9
+    editor.move_cursor_left(5)
+    assert editor.vterm.column == 4
+    editor.insert('hello ')
+
+    editor.check_term('>>> hello world', 10)
+    editor.check_text('hello world')
+
+
+def test_backspace(editor):
+    editor.insert('hello foo')
+    assert editor.vterm.column == 13
+    editor.backspace(3)
+    assert editor.vterm.column == 10
+    editor.insert('world')
+    editor.check_term('>>> hello world', 15)
+    editor.check_text('hello world')
+
+
+def test_newline(editor):
+    editor.insert('hello')
+    assert editor.vterm.column == 9
+    editor.newline()
+    assert editor.vterm.column == 4
+    assert editor.vterm.row == 1
+
+    editor.insert('world')
+    editor.check_term('>>> hello\n... world', 9, 1)
+    editor.check_text('hello\nworld')
