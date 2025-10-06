@@ -36,7 +36,10 @@ class TestTerm:
                 for i in range(len(m.group(0))):
                     chars.pop(0)
                 if direction_code == 'D':
-                    self._column = max(0, self._column - int(count))
+                    if count:
+                        self._column = max(0, self._column - int(count))
+                    else:
+                        self._column = max(0, self._column - 1)
                 else:
                     raise Exception(''.join(chars).encode('utf-8'))
         else:
@@ -67,6 +70,20 @@ def test_hello_world_out_of_order():
         edit_field.insert(char)
     edit_field.move_cursor_left(5)
     for char in 'hello ':
+        edit_field.insert(char)
+
+    print()
+    assert test_term.get_string() == '>>> hello world'
+
+
+def test_backspace():
+    test_term = TestTerm()
+    edit_field = EditField(ostream=test_term)
+    for char in 'hello foo':
+        edit_field.insert(char)
+    for i in range(3):
+        edit_field.backspace()
+    for char in 'world':
         edit_field.insert(char)
 
     print()

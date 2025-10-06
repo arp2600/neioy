@@ -233,6 +233,13 @@ class EditField:
         self._column += 1
         self._redraw_line()
 
+    def backspace(self):
+        self._text.move_left(1)
+        self._text.pop()
+        self._column -= 1
+        self._move_cursor_left()
+        self._redraw_line()
+
 
 def _get_test_lines(lines):
     for i, line in enumerate(lines):
