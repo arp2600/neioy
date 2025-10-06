@@ -76,14 +76,3 @@ def test_newline():
     print()
     assert vterm.get_string() == '>>> hello\n... world'
     assert (str(edit_field)) == 'hello\nworld'
-
-
-def test_control_chars():
-    print()
-    # for v in ['hello', '\x1b[D', '\n', '\x1b[A', '\x1b[B']:
-    # for v in ['hello', '\x1b[3D', '\n', 'wor', '\x1b[A', '\x1b[B']:
-    tty.setcbreak(sys.stdin.fileno())
-    for v in ['hello', '\x1b[3C', 'world', '\x1b[3B', 'fubar']:
-        sys.stdout.write(v)
-        sys.stdout.flush()
-        time.sleep(1)

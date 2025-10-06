@@ -1,16 +1,28 @@
 from virtual_terminal import VirtualTerminal
 import sys
 import time
+import tty
+import termios
+import io
 
 
 def show_sequence(input_string, delay=0.1):
-    print()
+    print('-' * 30)
+    try:
+        term_attrs = tty.setcbreak(sys.stdout.fileno())
+    except io.UnsupportedOperation:
+        raise Exception('Need to run pytest with -s (no capture)')
+
     for char in input_string:
         sys.stdout.write(char)
         sys.stdout.flush()
         time.sleep(delay)
     time.sleep(1.0)
+
+    termios.tcsetattr(sys.stdout.fileno(), termios.TCSANOW,
+                      term_attrs)
     print()
+    print('#' * 30)
 
 
 def run_test(input_string, expected, column, row=0, example=None):
