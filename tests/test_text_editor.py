@@ -163,3 +163,24 @@ def test_pop_at_end_of_buffer():
     sb.pop()  # shouldn't do anything
 
     assert str(sb) == 'hello\nworld'
+
+
+def test_get_lines():
+    sb = TextEditor()
+    for char in 'hello\nworld\nfizz buzz\nfoo bar\nfin':
+        sb.insert(char)
+
+    lines = list(sb.iter_lines())
+    assert lines == ['hello\n', 'world\n', 'fizz buzz\n', 'foo bar\n', 'fin']
+
+
+def test_get_line():
+    sb = TextEditor()
+    for char in 'hello\nworld\nfizz buzz\nfoo bar\nfin':
+        sb.insert(char)
+
+    assert sb.get_line(0) == 'hello\n'
+    assert sb.get_line(1) == 'world\n'
+    assert sb.get_line(2) == 'fizz buzz\n'
+    assert sb.get_line(3) == 'foo bar\n'
+    assert sb.get_line(4) == 'fin'

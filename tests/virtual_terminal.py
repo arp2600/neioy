@@ -68,6 +68,12 @@ class VirtualTerminal:
                     self.column = max(0, self.column)
                 else:
                     raise Exception(''.join(chars).encode('utf-8'))
+            elif chars[:2] == ['2', 'K']:
+                self._lines[self.row] = [' '] * self.column
+                chars.pop(0)
+                chars.pop(0)
+            else:
+                raise Exception('unhandled esacpe sequence')
         else:
             raise Exception(''.join(chars).encode('utf-8'))
 

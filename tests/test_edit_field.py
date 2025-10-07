@@ -52,13 +52,13 @@ def test_hello_world(editor):
 
 
 def test_move_left_and_insert(editor):
-    editor.insert('world')
+    editor.insert('herld')
     assert editor.vterm.column == 9
-    editor.move_cursor_left(5)
-    assert editor.vterm.column == 4
-    editor.insert('hello ')
+    editor.move_cursor_left(3)
+    assert editor.vterm.column == 6
+    editor.insert('llo wo')
 
-    editor.check_term('>>> hello world', 10)
+    editor.check_term('>>> hello world', 12)
     editor.check_text('hello world')
 
 
@@ -72,6 +72,15 @@ def test_backspace(editor):
     editor.check_text('hello world')
 
 
+def test_midtext_backspace(editor):
+    editor.insert('hello wurld')
+    editor.move_cursor_left(3)
+    editor.backspace()
+    editor.insert('o')
+    editor.check_term('>>> hello world', 12)
+    editor.check_text('hello world')
+
+
 def test_newline(editor):
     editor.insert('hello')
     assert editor.vterm.column == 9
@@ -81,4 +90,13 @@ def test_newline(editor):
 
     editor.insert('world')
     editor.check_term('>>> hello\n... world', 9, 1)
+    editor.check_text('hello\nworld')
+
+
+def test_midtext_newline(editor):
+    editor.insert('helloworld')
+    editor.move_cursor_left(5)
+    editor.newline()
+
+    editor.check_term('>>> hello\n... world', 4, 1)
     editor.check_text('hello\nworld')

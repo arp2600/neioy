@@ -19,8 +19,7 @@ def show_sequence(input_string, delay=0.1):
         time.sleep(delay)
     time.sleep(1.0)
 
-    termios.tcsetattr(sys.stdout.fileno(), termios.TCSANOW,
-                      term_attrs)
+    termios.tcsetattr(sys.stdout.fileno(), termios.TCSANOW, term_attrs)
     print()
     print('#' * 30)
 
@@ -78,3 +77,7 @@ def test_move_down():
              'foo buzz\nbar\nfizz    fin', 11, 2)
     # test move down at bottom
     run_test('foo\x1b[Bbar', 'foobar', 6, 0)
+
+
+def test_erase_line():
+    run_test('foo\x1b[2Khello world', '   hello world', 14)

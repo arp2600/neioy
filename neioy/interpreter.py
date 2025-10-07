@@ -7,6 +7,7 @@ import subprocess
 import io
 from tempfile import NamedTemporaryFile
 from codeop import CommandCompiler
+from itertools import islice
 from icecream import ic
 try:
     from post_window import post
@@ -37,10 +38,26 @@ class TextEditor:
         end = self._end_of_line_index(self._cursor)
         return ''.join(self._text[self._cursor:end])
 
-    def get_line(self):
-        start = self._start_of_line_index(self._cursor)
-        end = self._end_of_line_index(self._cursor)
-        return ''.join(self._text[start:end])
+    def iter_lines(self):
+
+        def lines_iter():
+            start = 0
+            end = self._end_of_line_index(start)
+            yield ''.join(self._text[start:end + 1])
+            while end != len(self._text):
+                start = end + 1
+                end = self._end_of_line_index(start)
+                yield ''.join(self._text[start:end + 1])
+
+        return lines_iter()
+
+    def get_line(self, row=None):
+        start = 0
+        end = self._end_of_line_index(start)
+        for _ in range(row):
+            start = end + 1
+            end = self._end_of_line_index(start)
+        return ''.join(self._text[start:end + 1])
 
     def insert(self, char):
         self._text.insert(self._cursor, char)
@@ -232,10 +249,15 @@ class EditField:
         save_column = self._column
         self._move_cursor_left(self._column)
 
+        self._ostream.write('\x1b[2K')
+
         prompt = self._prompts[self._row]
         self._write_prompt(prompt)
 
-        line = self._text.get_line()
+        line = self._text.get_line(self._row)
+        if line.endswith('\n'):
+            line = line[:-1]
+
         self._ostream.write(line)
         self._column += len(line)
 
@@ -243,7 +265,7 @@ class EditField:
             self._move_cursor_left(self._column - save_column)
 
         self._ostream.flush()
-        
+
     def insert(self, char):
         assert 0x20 <= ord(char) <= 0x7e
         self._text.insert(char)
@@ -258,53 +280,12 @@ class EditField:
 
     def newline(self):
         self._text.insert('\n')
+        self._redraw_line()
         self._move_cursor_down()
         self._redraw_line()
 
     def __str__(self):
         return str(self._text)
-
-
-def _get_test_lines(lines):
-    for i, line in enumerate(lines):
-        if line == 'START OF TEST\n':
-            start = i + 1
-            break
-    else:
-        raise Exception("Couldn't find the start of the test")
-
-    for i, line in enumerate(lines[start:]):
-        if line == 'END OF TEST\n':
-            end = i + start
-            break
-    else:
-        raise Exception("Couldn't find the end of the test")
-
-    return lines[start:end]
-
-
-def _get_test_output(test_func):
-    with NamedTemporaryFile(mode='wt', delete_on_close=False) as f:
-        edit_field = EditField(ostream=f)
-        test_func(edit_field)
-        f.write('\n')
-        f.close()
-        subprocess.run(['tmux', '-c', f'./tmux_process.sh {f.name}'],
-                       check=True)
-
-        with open(f.name, 'rt') as f:
-            return ''.join(_get_test_lines(f.readlines()))
-
-
-def test_hello_world():
-
-    def test_func(edit_field):
-        for char in 'hello world':
-            edit_field.insert(char)
-
-    result = _get_test_output(test_func)
-    print(result)
-    assert result == '>>> hello world\n'
 
 
 class Interpreter:
