@@ -291,8 +291,6 @@ class EditField:
 class Interpreter:
 
     def __init__(self, locals=None):
-        self.ps1 = '>>> '
-        self.ps2 = '... '
 
         self._setup_tty()
 
@@ -309,8 +307,6 @@ class Interpreter:
 
             locals['exit'] = raise_system_exit
         self._locals = locals
-
-        self._prompt(self.ps1)
 
         self._chars = ''
         self._reset_input_buffer()
@@ -330,7 +326,7 @@ class Interpreter:
                                       tty_attrs)
 
     def _reset_input_buffer(self):
-        self._input = TextEditor()
+        self._editor = EditField()
 
     def _handle_csi(self):
         sequence = ''
@@ -340,34 +336,20 @@ class Interpreter:
             if 0x40 <= ord(char) <= 0x7E:
                 break
 
-        row_0, column_0 = self._input.get_row_and_column()
-
         if sequence == '200~':
             self._bracketed_paste = True
         elif sequence == '201~':
             self._bracketed_paste = False
         elif sequence == 'A':
-            self._input.move_up(1)
+            self._editor.move_cursor_up()
         elif sequence == 'B':
-            self._input.move_down(1)
+            self._editor.move_cursor_down()
         elif sequence == 'C':
-            self._input.move_right(1)
+            self._editor.move_cursor_right()
         elif sequence == 'D':
-            self._input.move_left(1)
+            self._editor.move_cursor_left()
         else:
             print(sequence.encode('utf-8'))
-
-        row_1, column_1 = self._input.get_row_and_column()
-        delta_row = row_1 - row_0
-        delta_column = column_1 - column_0
-        for _ in range(0, delta_column):
-            Terminal.move_cursor_right()
-        for _ in range(0, -delta_column):
-            Terminal.move_cursor_left()
-        for _ in range(0, delta_row):
-            Terminal.move_cursor_down()
-        for _ in range(0, -delta_row):
-            Terminal.move_cursor_up()
 
     def _handle_escape_sequence(self):
         char = yield from self._get_char()
@@ -378,7 +360,6 @@ class Interpreter:
                 f'unhandled escape sequence {char.encode("utf-8")}')
 
     def _get_char(self):
-
         while not self._chars:
             # Read from stdin without blocking
             os.set_blocking(sys.stdin.fileno(), False)
@@ -398,38 +379,10 @@ class Interpreter:
     def _handle_ctrl_c(self):
         sys.stdout.write('\nKeyboardInterrupt\n')
         self._reset_input_buffer()
-        self._prompt(self.ps1)
-
-    def _handle_backspace(self):
-        self._input.move_left(1)
-        self._input.pop()
-
-        # step left and erase to the end of the line
-        Terminal.move_cursor_left()
-        Terminal.erase_from_cursor_to_end_of_line()
-        rest = self._input.get_line_after_cursor()
-        if rest:
-            sys.stdout.write(rest)
-            Terminal.move_cursor_left(len(rest))
-
-    def _handle_tab(self):
-        for _ in range(4):
-            self._input.insert(' ')
-            sys.stdout.write(' ')
-
-    def _handle_character(self, char):
-        # add a character at the cursor index
-        self._input.insert(char)
-        sys.stdout.write(char)
-
-        rest = self._input.get_line_after_cursor()
-        if rest:
-            sys.stdout.write(rest)
-            Terminal.move_cursor_left(len(rest))
 
     def _handle_newline(self):
         if self._bracketed_paste:
-            self._prompt(self.ps2)
+            self._editor.newline()
         else:
             self._try_run_source()
 
@@ -442,30 +395,25 @@ class Interpreter:
             elif char == '\x03':  # ctrl-c
                 self._handle_ctrl_c()
             elif ord(char) == 0x7f:
-                self._handle_backspace()
+                self._editor.backspace()
             elif char == '\t':
-                self._handle_tab()
+                for _ in range(4):
+                    self._editor.insert(' ')
             elif char == '\n':
                 self._handle_newline()
             else:
-                self._handle_character(char)
-
-    def _prompt(self, prompt_str):
-        sys.stdout.write(prompt_str)
-        sys.stdout.flush()
+                self._editor.insert(char)
 
     def _reset_term(self):
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
                           self._tty_attrs)
 
     def _try_run_source(self):
-        source = str(self._input)
+        source = str(self._editor)
         lines = source.splitlines()
 
         if len(lines) > 1 and not source.endswith('\n'):
-            self._input.insert('\n')
-            sys.stdout.write('\n')
-            self._prompt(self.ps2)
+            self._editor.newline()
             return
 
         post(f'{source.encode("utf-8")}')
@@ -477,14 +425,11 @@ class Interpreter:
 
             code = self._compile(source, symbol=symbol)
             if code is None:
-                self._input.insert('\n')
-                sys.stdout.write('\n')
-                self._prompt(self.ps2)
+                self._editor.newline()
                 return
         except (OverflowError, SyntaxError, ValueError):
             sys.stdout.write(f'\nsyntax error\n')
             self._reset_input_buffer()
-            self._prompt(self.ps1)
             return
 
         sys.stdout.write('\n')
@@ -495,7 +440,6 @@ class Interpreter:
             raise e
 
         self._reset_input_buffer()
-        self._prompt(self.ps1)
 
     def update(self):
         next(self._run_generator)
