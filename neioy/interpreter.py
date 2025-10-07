@@ -231,6 +231,23 @@ class EditField:
         self._move_cursor_left(amount)
         self._text.move_left(amount)
 
+    def move_cursor_up(self, amount=1):
+        # should only move up as far as the first line
+        amount = min(amount, self._row)
+        if amount == 0:
+            return
+
+        self._text.move_up(amount)
+        row, column = self._text.get_row_and_column()
+
+        Terminal.move_cursor_up(self._row - row, self._ostream)
+        self._row = row
+
+        column += len(self._prompts[self._row])
+        if column < self._column:
+            Terminal.move_cursor_left(self._column - column, self._ostream)
+            self._column = column
+
     def _move_cursor_down(self, amount=1):
         assert amount > 0
         while len(self._prompts) > (self._row + 1):

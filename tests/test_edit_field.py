@@ -21,6 +21,9 @@ class _TestHarness:
     def move_cursor_left(self, amount=1):
         self.edit_field.move_cursor_left(amount)
 
+    def move_cursor_up(self, amount=1):
+        self.edit_field.move_cursor_up(amount)
+
     def backspace(self, count=1):
         for i in range(count):
             self.edit_field.backspace()
@@ -100,3 +103,36 @@ def test_midtext_newline(editor):
 
     editor.check_term('>>> hello\n... world', 4, 1)
     editor.check_text('hello\nworld')
+
+
+def test_move_cursor_up(editor):
+    editor.insert('hello')
+    editor.newline()
+    editor.insert('foo bar')
+    editor.move_cursor_up()
+    assert editor.vterm.column == 9
+    assert editor.vterm.row == 0
+    editor.insert(' world')
+
+    print('\n\n\n')
+    editor.check_term('>>> hello world\n... foo bar', 15, 0)
+    editor.check_text('hello world\nfoo bar')
+
+
+def test_midtext_move_cursor_up(editor):
+    editor.insert('helld')
+    editor.newline()
+    editor.insert('foo bar')
+    editor.move_cursor_left(4)
+    editor.move_cursor_up()
+    assert editor.vterm.column == 7
+    assert editor.vterm.row == 0
+    editor.insert('lo wor')
+
+    print('\n\n\n')
+    editor.check_term('>>> hello world\n... foo bar', 13, 0)
+    editor.check_text('hello world\nfoo bar')
+
+
+# test_move_cursor_down
+# test_move_cursor_right
