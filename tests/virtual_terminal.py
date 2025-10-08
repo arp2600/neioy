@@ -4,19 +4,20 @@ import re
 
 class VirtualTerminal:
 
-    def __init__(self):
+    def __init__(self, echo=False):
         self._lines = [[]]
         self.row = 0
         self.column = 0
         self._raw_input = []
-        print()
+        self._echo = echo
 
     def raw_input(self):
         return ''.join(self._raw_input)
 
     def write(self, chars):
         self._raw_input.append(chars)
-        sys.stdout.write(chars)
+        if self._echo:
+            sys.stdout.write(chars)
         chars = list(chars)
         while chars:
             char = chars.pop(0)
@@ -78,7 +79,8 @@ class VirtualTerminal:
             raise Exception(''.join(chars).encode('utf-8'))
 
     def flush(self):
-        sys.stdout.flush()
+        if self._echo:
+            sys.stdout.flush()
 
     def get_string(self):
         line_strings = [''.join(line) for line in self._lines]

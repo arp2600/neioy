@@ -228,28 +228,42 @@ class EditField:
 
     def move_cursor_left(self, amount=1):
         assert amount > 0
-        self._move_cursor_left(amount)
         self._text.move_left(amount)
+        self._update_cursor_position()
+
+    def move_cursor_right(self, amount=1):
+        assert amount > 0
+        self._text.move_right(amount)
+        self._update_cursor_position()
 
     def move_cursor_up(self, amount=1):
-        # should only move up as far as the first line
-        amount = min(amount, self._row)
-        if amount == 0:
-            return
-
+        assert amount > 0
         self._text.move_up(amount)
-        row, column = self._text.get_row_and_column()
+        self._update_cursor_position()
 
-        Terminal.move_cursor_up(self._row - row, self._ostream)
+    def move_cursor_down(self, amount=1):
+        assert amount > 0
+        self._text.move_down(amount)
+        self._update_cursor_position()
+
+    def _update_cursor_position(self):
+        row, column = self._text.get_row_and_column()
+        if row < self._row:
+            Terminal.move_cursor_up(self._row - row, self._ostream)
+        elif row > self._row:
+            Terminal.move_cursor_down(row - self._row, self._ostream)
         self._row = row
 
         column += len(self._prompts[self._row])
         if column < self._column:
             Terminal.move_cursor_left(self._column - column, self._ostream)
-            self._column = column
+        elif column > self._column:
+            Terminal.move_cursor_right(column - self._column, self._ostream)
+        self._column = column
 
     def _move_cursor_down(self, amount=1):
         assert amount > 0
+        # TODO replace this loop by calculating the amount we should move down
         while len(self._prompts) > (self._row + 1):
             Terminal.move_cursor_down(amount, self._ostream)
             self._row += amount

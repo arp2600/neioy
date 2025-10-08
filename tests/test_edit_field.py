@@ -18,11 +18,8 @@ class _TestHarness:
         for char in chars:
             self.edit_field.insert(char)
 
-    def move_cursor_left(self, amount=1):
-        self.edit_field.move_cursor_left(amount)
-
-    def move_cursor_up(self, amount=1):
-        self.edit_field.move_cursor_up(amount)
+    def __getattr__(self, name):
+        return getattr(self.edit_field, name)
 
     def backspace(self, count=1):
         for i in range(count):
@@ -32,107 +29,62 @@ class _TestHarness:
         for i in range(count):
             self.edit_field.newline()
 
-    def check_term(self, expected, column, row=0):
-        print(
-        )  # useful for preserving terminal output to manually check result
-        assert str(self.vterm) == expected
+    def check(self, expected, column, row=0):
+        print()
+        print(str(self.vterm))
+
+        # Add the prompt onto expected to test vterms output.
+        expected_vterm = self.edit_field.ps1 + expected.replace(
+            '\n', '\n' + self.edit_field.ps2)
+
+        assert str(self.vterm) == expected_vterm
         assert self.vterm.column == column
         assert self.vterm.row == row
-
-    def check_text(self, expected):
         assert str(self.edit_field) == expected
 
 
-@pytest.fixture
+@pytest.fixture(scope='class')
 def editor():
     return _TestHarness()
 
 
-def test_hello_world(editor):
-    editor.insert('hello world')
-    editor.check_term('>>> hello world', 15)
-    editor.check_text('hello world')
+class TestMovements:
+    """
+    The tests are placed in a class and use a fixture with class scope. This allows each
+    test to continue the output of the last test, which is useful for testing the
+    movements in isolation.
+    """
 
+    def test_insert(self, editor):
+        editor.insert('hello world')
+        editor.check('hello world', 15)
 
-def test_move_left_and_insert(editor):
-    editor.insert('herld')
-    assert editor.vterm.column == 9
-    editor.move_cursor_left(3)
-    assert editor.vterm.column == 6
-    editor.insert('llo wo')
+    def test_move_left(self, editor):
+        editor.move_cursor_left(5)
+        editor.insert('to ')
 
-    editor.check_term('>>> hello world', 12)
-    editor.check_text('hello world')
+        editor.check('hello to world', 13)
 
+    def test_backspace(self, editor):
+        editor.backspace(3)
+        editor.check('hello world', 10)
 
-def test_backspace(editor):
-    editor.insert('hello foo')
-    assert editor.vterm.column == 13
-    editor.backspace(3)
-    assert editor.vterm.column == 10
-    editor.insert('world')
-    editor.check_term('>>> hello world', 15)
-    editor.check_text('hello world')
+    def test_newline(self, editor):
+        editor.newline()
+        editor.check('hello \nworld', 4, 1)
 
+    def test_move_cursor_up(self, editor):
+        editor.move_cursor_up()
+        editor.insert('c')
 
-def test_midtext_backspace(editor):
-    editor.insert('hello wurld')
-    editor.move_cursor_left(3)
-    editor.backspace()
-    editor.insert('o')
-    editor.check_term('>>> hello world', 12)
-    editor.check_text('hello world')
+        editor.check('chello \nworld', 5, 0)
 
+    def test_move_cursor_down(self, editor):
+        editor.move_cursor_down()
+        editor.insert('here n')
+        editor.check('chello \nwhere norld', 11, 1)
 
-def test_newline(editor):
-    editor.insert('hello')
-    assert editor.vterm.column == 9
-    editor.newline()
-    assert editor.vterm.column == 4
-    assert editor.vterm.row == 1
-
-    editor.insert('world')
-    editor.check_term('>>> hello\n... world', 9, 1)
-    editor.check_text('hello\nworld')
-
-
-def test_midtext_newline(editor):
-    editor.insert('helloworld')
-    editor.move_cursor_left(5)
-    editor.newline()
-
-    editor.check_term('>>> hello\n... world', 4, 1)
-    editor.check_text('hello\nworld')
-
-
-def test_move_cursor_up(editor):
-    editor.insert('hello')
-    editor.newline()
-    editor.insert('foo bar')
-    editor.move_cursor_up()
-    assert editor.vterm.column == 9
-    assert editor.vterm.row == 0
-    editor.insert(' world')
-
-    print('\n\n\n')
-    editor.check_term('>>> hello world\n... foo bar', 15, 0)
-    editor.check_text('hello world\nfoo bar')
-
-
-def test_midtext_move_cursor_up(editor):
-    editor.insert('helld')
-    editor.newline()
-    editor.insert('foo bar')
-    editor.move_cursor_left(4)
-    editor.move_cursor_up()
-    assert editor.vterm.column == 7
-    assert editor.vterm.row == 0
-    editor.insert('lo wor')
-
-    print('\n\n\n')
-    editor.check_term('>>> hello world\n... foo bar', 13, 0)
-    editor.check_text('hello world\nfoo bar')
-
-
-# test_move_cursor_down
-# test_move_cursor_right
+    def test_move_cursor_right(self, editor):
+        editor.move_cursor_right(2)
+        editor.insert('k wo')
+        editor.check('chello \nwhere nork wold', 17, 1)
