@@ -129,9 +129,6 @@ class TextEditor:
         if line_end == len(self._text):
             return  # Already on the last line.
 
-        if line_end + 1 == len(self._text):
-            return  # Already on the last line, but it ends with a newline.
-
         next_line_start = line_end + 1
         next_line_end = self._end_of_line_index(next_line_start)
 
@@ -460,6 +457,8 @@ class Interpreter:
                 return
         except (OverflowError, SyntaxError, ValueError):
             sys.stdout.write(f'\nsyntax error\n')
+            sys.stdout.write(source)
+            sys.stdout.write('\n\n')
             self._reset_input_buffer()
             return
 

@@ -16,7 +16,10 @@ class _TestHarness:
 
     def insert(self, chars):
         for char in chars:
-            self.edit_field.insert(char)
+            if char == '\n':
+                self.edit_field.newline()
+            else:
+                self.edit_field.insert(char)
 
     def __getattr__(self, name):
         return getattr(self.edit_field, name)
@@ -88,3 +91,26 @@ class TestMovements:
         editor.move_cursor_right(2)
         editor.insert('k wo')
         editor.check('chello \nwhere nork wold', 17, 1)
+
+
+def test_move_cursor_down_to_empty_line(editor):
+    for chars in ['hello', 'world']:
+        editor.insert(chars)
+        editor.newline()
+    editor.move_cursor_up()
+    assert editor.vterm.row == 1
+    editor.move_cursor_down()
+    assert editor.vterm.row == 2
+    editor.insert('foo')
+    editor.check('hello\nworld\nfoo', 7, 2)
+
+
+def test_left_right_wrapping(editor):
+    editor.insert('hello\nworld')
+    editor.move_cursor_left(6)
+    assert editor.vterm.row == 0
+    assert editor.vterm.column == 9
+    editor.insert('foo')
+    editor.move_cursor_right()
+    editor.insert('bar')
+    editor.check('hellofoo\nbarworld', 7, 1)
