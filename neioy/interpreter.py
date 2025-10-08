@@ -199,9 +199,41 @@ class Terminal:
 class Term:
 
     def __init__(self, ostream):
+        # get the screen dimensions
+        start_pos = self.request_cursor_position()
+        self.move_cursor_to_absolute(9999, 9999)
+        end_pos = self.request_cursor_position()
+        self.screen_height = end_pos[0]
+        self.screen_width = end_pos[1]
+        self.move_cursor_to_absolute(*start_pos)
+
         self.row = 0
         self.column = 0
         self._ostream = ostream
+
+    def request_cursor_position(self):
+        sys.stdout.write('\x1b[6n')
+        sys.stdout.flush()
+        assert sys.stdin.read(2) == '\x1b['
+        row = ''
+        while True:
+            char = sys.stdin.read(1)
+            if '0' <= char <= '9':
+                row += char
+            elif char == ';':
+                break
+            else:
+                raise Exception()
+        column = ''
+        while True:
+            char = sys.stdin.read(1)
+            if '0' <= char <= '9':
+                column += char
+            elif char == 'R':
+                break
+            else:
+                raise Exception()
+        return (int(row), int(column))
 
     def write(self, chars):
         for char in chars:
@@ -256,6 +288,9 @@ class Term:
         if column is not None:
             if column != self.column:
                 self.move_to_column(column)
+
+    def move_cursor_to_absolute(self, row, column):
+        sys.stdout.write(f'\x1b[{row};{column}H')
 
 
 class EditField:
