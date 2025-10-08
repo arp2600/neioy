@@ -238,6 +238,11 @@ class Term:
         Terminal.move_cursor_down(amount, self._ostream)
         self.row += amount
 
+    def move_to_column(self, column):
+        assert column >= 0
+        # add 1 to column as the terminal starts from index 1 not zero
+        self._ostream.write(f'\x1b[{column + 1}G')
+
     def erase_line(self):
         self._ostream.write('\x1b[2K')
 
@@ -249,10 +254,8 @@ class Term:
                 self.move_cursor_down(row - self.row)
 
         if column is not None:
-            if column < self.column:
-                self.move_cursor_left(self.column - column)
-            elif column > self.column:
-                self.move_cursor_right(column - self.column)
+            if column != self.column:
+                self.move_to_column(column)
 
 
 class EditField:
@@ -327,9 +330,14 @@ class EditField:
         # insert a new prompt for the newline
         self._prompts.insert(row, self.ps2)
 
+        # write out enough newlines to display the rest of the lines
+        # TODO this breaks given enough lines.
+        # When trying to move_up past the top of the window, nothing happens and _redraw_line draws over the last line.
+        # When trying to move_down past the bottom the same thing happens. We knew that already but didn't factor in actually moving down, not adding newlines.
+        self._term.write('\n' * (len(self._prompts) - row))
+        self._term.flush()
         # Starting from the line the newline was added to, redraw every line going down.
         for i in range(row - 1, len(self._prompts)):
-            self._term.write('\n')
             self._redraw_line(i)
         self._reset_cursor_position()
 

@@ -69,6 +69,11 @@ class VirtualTerminal:
                     self.column = max(0, self.column)
                 else:
                     raise Exception(''.join(chars).encode('utf-8'))
+            elif m := re.match(r'(\d+)G', ''.join(chars)):
+                column = m.group(1)
+                self.column = max(int(column) - 1, 0)
+                for i in range(len(m.group(0))):
+                    chars.pop(0)
             elif chars[:2] == ['2', 'K']:
                 self._lines[self.row] = [' '] * self.column
                 chars.pop(0)

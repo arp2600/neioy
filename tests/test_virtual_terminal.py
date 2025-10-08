@@ -81,3 +81,8 @@ def test_move_down():
 
 def test_erase_line():
     run_test('foo\x1b[2Khello world', '   hello world', 14)
+
+
+def test_move_to_column():
+    run_test('hello world\x1b[3G', 'hello world', 2)
+    run_test('hello world!!!\x1b[11G', 'hello world!!!', 10)
