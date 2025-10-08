@@ -196,6 +196,65 @@ class Terminal:
         ostream.write('\x1b[0K')
 
 
+class Term:
+
+    def __init__(self, ostream):
+        self.row = 0
+        self.column = 0
+        self._ostream = ostream
+
+    def write(self, chars):
+        for char in chars:
+            if char == '\n':
+                self.column = 0
+                self.row += 1
+            else:
+                self.column += 1
+
+        self._ostream.write(chars)
+
+    def flush(self):
+        self._ostream.flush()
+
+    def move_cursor_left(self, amount=1):
+        assert amount > 0
+        assert amount <= self.column
+        Terminal.move_cursor_left(amount, self._ostream)
+        self.column -= amount
+
+    def move_cursor_right(self, amount=1):
+        assert amount > 0
+        Terminal.move_cursor_right(amount, self._ostream)
+        self.column += amount
+
+    def move_cursor_up(self, amount=1):
+        assert amount > 0
+        assert amount <= self.row
+        Terminal.move_cursor_up(amount, self._ostream)
+        self.row -= amount
+
+    def move_cursor_down(self, amount=1):
+        assert amount > 0
+        Terminal.move_cursor_down(amount, self._ostream)
+        self.row += amount
+
+    def erase_line(self):
+        self._ostream.write('\x1b[2K')
+
+    def move_cursor_to(self, row=None, column=None):
+        if row is not None:
+            if row < self.row:
+                self.move_cursor_up(self.row - row)
+            elif row > self.row:
+                self.move_cursor_down(row - self.row)
+
+        if column is not None:
+            if column < self.column:
+                self.move_cursor_left(self.column - column)
+            elif column > self.column:
+                self.move_cursor_right(column - self.column)
+
+
 class EditField:
 
     def __init__(self, ps1='>>> ', ps2='... ', ostream=sys.stdout):
@@ -203,114 +262,76 @@ class EditField:
         self.ps2 = ps2
         self._prompts = [ps1]
         self._text = TextEditor()
-        self._ostream = ostream
+        self._term = Term(ostream)
 
-        self._row = 0
-        self._column = 0
-
-        self._write_prompt(self.ps1)
-        self._flush()
-
-    def _write_prompt(self, prompt):
-        self._column += len(prompt)
-        self._ostream.write(prompt)
-
-    def _flush(self):
-        self._ostream.flush()
-
-    def _move_cursor_left(self, amount=1):
-        assert amount > 0
-        Terminal.move_cursor_left(amount, self._ostream)
-        self._column -= amount
+        self._term.write(self.ps1)
+        self._term.flush()
 
     def move_cursor_left(self, amount=1):
         assert amount > 0
         self._text.move_left(amount)
-        self._update_cursor_position()
+        self._reset_cursor_position()
 
     def move_cursor_right(self, amount=1):
         assert amount > 0
         self._text.move_right(amount)
-        self._update_cursor_position()
+        self._reset_cursor_position()
 
     def move_cursor_up(self, amount=1):
         assert amount > 0
         self._text.move_up(amount)
-        self._update_cursor_position()
+        self._reset_cursor_position()
 
     def move_cursor_down(self, amount=1):
         assert amount > 0
         self._text.move_down(amount)
-        self._update_cursor_position()
+        self._reset_cursor_position()
 
-    def _update_cursor_position(self):
+    def _reset_cursor_position(self):
         row, column = self._text.get_row_and_column()
-        if row < self._row:
-            Terminal.move_cursor_up(self._row - row, self._ostream)
-        elif row > self._row:
-            Terminal.move_cursor_down(row - self._row, self._ostream)
-        self._row = row
+        column += len(self._prompts[row])
+        self._term.move_cursor_to(row, column)
 
-        column += len(self._prompts[self._row])
-        if column < self._column:
-            Terminal.move_cursor_left(self._column - column, self._ostream)
-        elif column > self._column:
-            Terminal.move_cursor_right(column - self._column, self._ostream)
-        self._column = column
+    def _redraw_line(self, row=None):
+        self._term.move_cursor_to(row, 0)
+        self._term.erase_line()
 
-    def _move_cursor_down(self, amount=1):
-        assert amount > 0
-        # TODO replace this loop by calculating the amount we should move down
-        while len(self._prompts) > (self._row + 1):
-            Terminal.move_cursor_down(amount, self._ostream)
-            self._row += amount
-            amount -= 1
+        if row is None:
+            row, _ = self._text.get_row_and_column()
 
-        while amount > 0:
-            self._ostream.write('\n')
-            self._prompts.append(self.ps2)
-            self._row += amount
-            self._column = len(self.ps2)
-            amount -= 1
+        prompt = self._prompts[row]
+        self._term.write(prompt)
 
-    def _redraw_line(self):
-        save_column = self._column
-        self._move_cursor_left(self._column)
-
-        self._ostream.write('\x1b[2K')
-
-        prompt = self._prompts[self._row]
-        self._write_prompt(prompt)
-
-        line = self._text.get_line(self._row)
+        line = self._text.get_line(row)
         if line.endswith('\n'):
             line = line[:-1]
 
-        self._ostream.write(line)
-        self._column += len(line)
-
-        if self._column != save_column:
-            self._move_cursor_left(self._column - save_column)
-
-        self._ostream.flush()
+        self._term.write(line)
+        self._reset_cursor_position()
+        self._term.flush()
 
     def insert(self, char):
         assert 0x20 <= ord(char) <= 0x7e
         self._text.insert(char)
-        self._column += 1
         self._redraw_line()
 
     def backspace(self):
         self._text.move_left(1)
         self._text.pop()
-        self._move_cursor_left()
         self._redraw_line()
 
     def newline(self):
         self._text.insert('\n')
-        self._redraw_line()
-        self._move_cursor_down()
-        self._redraw_line()
+        row, _ = self._text.get_row_and_column()
+
+        # insert a new prompt for the newline
+        self._prompts.insert(row, self.ps2)
+
+        # Starting from the line the newline was added to, redraw every line going down.
+        for i in range(row - 1, len(self._prompts)):
+            self._term.write('\n')
+            self._redraw_line(i)
+        self._reset_cursor_position()
 
     def __str__(self):
         return str(self._text)

@@ -95,6 +95,7 @@ class Interpreter:
             elif char == '\n':
                 if str(self._editor) == 'exit':
                     print('\nExiting...')
+                    self._reset_term()
                     exit(0)
                 self._editor.newline()
             else:

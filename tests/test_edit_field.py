@@ -60,6 +60,7 @@ class TestMovements:
 
     def test_insert(self, editor):
         editor.insert('hello world')
+        print(editor.vterm.raw_input().encode('utf-8'))
         editor.check('hello world', 15)
 
     def test_move_left(self, editor):
