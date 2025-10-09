@@ -8,6 +8,7 @@ import io
 from tempfile import NamedTemporaryFile
 from codeop import CommandCompiler
 from itertools import islice
+from dataclasses import dataclass
 from icecream import ic
 try:
     from post_window import post
@@ -199,20 +200,27 @@ class Terminal:
 class Term:
 
     def __init__(self, istream, ostream):
-        self.row = 0
-        self.column = 0
         self._istream = istream
         self._ostream = ostream
+        self._init_screen_dimensions()
 
-        # get the screen dimensions
-        start_pos = self.request_cursor_position()
-        self.move_cursor_to_absolute(9999, 9999)
-        end_pos = self.request_cursor_position()
-        self.screen_height = end_pos[0]
-        self.screen_width = end_pos[1]
-        self.move_cursor_to_absolute(*start_pos)
+    def _init_screen_dimensions(self):
+        # save the current position
+        self._update_cursor_position()
+        saved_position = (self.row, self.column)
 
-    def request_cursor_position(self):
+        # Move the cursor far left and down, it will only
+        # move as far as the screen dimensions allow.
+        self.move_cursor_to(9999, 9999)
+
+        self._update_cursor_position()
+        self.screen_height = self.row
+        self.screen_width = self.column
+
+        # restore the cursor position
+        self.move_cursor_to(*saved_position)
+
+    def _update_cursor_position(self):
         self._ostream.write('\x1b[6n')
         self._ostream.flush()
         assert self._istream.read(2) == '\x1b['
@@ -234,7 +242,8 @@ class Term:
                 break
             else:
                 raise Exception()
-        return (int(row), int(column))
+        self.row = int(row)
+        self.column = int(column)
 
     def write(self, chars):
         for char in chars:
@@ -273,35 +282,39 @@ class Term:
 
     def move_to_column(self, column):
         assert column >= 0
-        # add 1 to column as the terminal starts from index 1 not zero
-        self._ostream.write(f'\x1b[{column + 1}G')
+        self._ostream.write(f'\x1b[{column}G')
 
     def erase_line(self):
         self._ostream.write('\x1b[2K')
 
     def move_cursor_to(self, row=None, column=None):
         if row is not None:
-            if row < self.row:
-                self.move_cursor_up(self.row - row)
-            elif row > self.row:
-                self.move_cursor_down(row - self.row)
-
+            self.row = row
         if column is not None:
-            if column != self.column:
-                self.move_to_column(column)
+            self.column = column
+        self._ostream.write(f'\x1b[{self.row};{self.column}H')
 
-    def move_cursor_to_absolute(self, row, column):
-        sys.stdout.write(f'\x1b[{row};{column}H')
+
+@dataclass
+class RowColumn:
+    row: int = 0
+    column: int = 0
 
 
 class EditField:
 
-    def __init__(self, ps1='>>> ', ps2='... ', istream=sys.stdin, ostream=sys.stdout):
+    def __init__(self,
+                 ps1='>>> ',
+                 ps2='... ',
+                 istream=sys.stdin,
+                 ostream=sys.stdout):
         self.ps1 = ps1
         self.ps2 = ps2
         self._prompts = [ps1]
         self._text = TextEditor()
         self._term = Term(istream, ostream)
+        self._term_offset = RowColumn(row=self._term.row,
+                                      column=self._term.column)
 
         self._term.write(self.ps1)
         self._term.flush()
@@ -329,10 +342,16 @@ class EditField:
     def _reset_cursor_position(self):
         row, column = self._text.get_row_and_column()
         column += len(self._prompts[row])
-        self._term.move_cursor_to(row, column)
+        self._term.move_cursor_to(row + self._term_offset.row,
+                                  column + self._term_offset.column)
 
     def _redraw_line(self, row=None):
-        self._term.move_cursor_to(row, 0)
+        if row is None:
+            self._term.move_cursor_to(None, self._term_offset.column)
+        else:
+            self._term.move_cursor_to(row + self._term_offset.row,
+                                      self._term_offset.column)
+
         self._term.erase_line()
 
         if row is None:

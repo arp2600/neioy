@@ -92,9 +92,14 @@ class VirtualTerminal:
             elif chars[:2] == ['6', 'n']:
                 chars.pop(0)
                 chars.pop(0)
-                self._istream_buffer += f'\x1b[{self._height};{self._width}R'
+                self._istream_buffer += f'\x1b[{self.row + 1};{self.column + 1}R'
+            elif m := re.match(f'(\d+);(\d+)H', ''.join(chars)):
+                for i in range(len(m.group(0))):
+                    chars.pop(0)
+                self.row = max(min(int(m.group(1)) - 1, self._height - 1), 0)
+                self.column = max(min(int(m.group(2)) - 1, self._width - 1), 0)
             else:
-                raise Exception('unhandled esacpe sequence')
+                raise Exception(f'unhandled esacpe sequence {chars}')
         else:
             raise Exception(''.join(chars).encode('utf-8'))
 
