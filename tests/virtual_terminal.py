@@ -4,12 +4,15 @@ import re
 
 class VirtualTerminal:
 
-    def __init__(self, echo=False):
+    def __init__(self, echo=False, height=50, width=150):
+        self._height = 50
+        self._width = 150
         self._lines = [[]]
         self.row = 0
         self.column = 0
         self._raw_input = []
         self._echo = echo
+        self._istream_buffer = ''
 
     def raw_input(self):
         return ''.join(self._raw_input)
@@ -35,6 +38,14 @@ class VirtualTerminal:
                     line.append(' ')
                 line[self.column] = char
                 self.column += 1
+
+    def read(self, count):
+        assert count > 0
+        assert len(self._istream_buffer) >= count
+
+        result = self._istream_buffer[:count]
+        self._istream_buffer = self._istream_buffer[count:]
+        return result
 
     def _handle_escape(self, chars):
         if chars and chars[0] == '[':
@@ -78,6 +89,10 @@ class VirtualTerminal:
                 self._lines[self.row] = [' '] * self.column
                 chars.pop(0)
                 chars.pop(0)
+            elif chars[:2] == ['6', 'n']:
+                chars.pop(0)
+                chars.pop(0)
+                self._istream_buffer += f'\x1b[{self._height};{self._width}R'
             else:
                 raise Exception('unhandled esacpe sequence')
         else:

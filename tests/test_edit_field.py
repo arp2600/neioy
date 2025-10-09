@@ -12,7 +12,7 @@ class _TestHarness:
 
     def __init__(self):
         self.vterm = VirtualTerminal()
-        self.edit_field = EditField(ostream=self.vterm)
+        self.edit_field = EditField(istream=self.vterm, ostream=self.vterm)
 
     def insert(self, chars):
         for char in chars:
