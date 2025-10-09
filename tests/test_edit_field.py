@@ -32,7 +32,7 @@ class _TestHarness:
         for i in range(count):
             self.edit_field.newline()
 
-    def check(self, expected, column, row=0):
+    def check(self, expected, column, row=1):
         print()
         print(str(self.vterm))
 
@@ -61,37 +61,37 @@ class TestMovements:
     def test_insert(self, editor):
         editor.insert('hello world')
         print(editor.vterm.raw_input().encode('utf-8'))
-        editor.check('hello world', 15)
+        editor.check('hello world', 16)
 
     def test_move_left(self, editor):
         editor.move_cursor_left(5)
         editor.insert('to ')
 
-        editor.check('hello to world', 13)
+        editor.check('hello to world', 14)
 
     def test_backspace(self, editor):
         editor.backspace(3)
-        editor.check('hello world', 10)
+        editor.check('hello world', 11)
 
     def test_newline(self, editor):
         editor.newline()
-        editor.check('hello \nworld', 4, 1)
+        editor.check('hello \nworld', 5, 2)
 
     def test_move_cursor_up(self, editor):
         editor.move_cursor_up()
         editor.insert('c')
 
-        editor.check('chello \nworld', 5, 0)
+        editor.check('chello \nworld', 6, 1)
 
     def test_move_cursor_down(self, editor):
         editor.move_cursor_down()
         editor.insert('here n')
-        editor.check('chello \nwhere norld', 11, 1)
+        editor.check('chello \nwhere norld', 12, 2)
 
     def test_move_cursor_right(self, editor):
         editor.move_cursor_right(2)
         editor.insert('k wo')
-        editor.check('chello \nwhere nork wold', 17, 1)
+        editor.check('chello \nwhere nork wold', 18, 2)
 
 
 def test_move_cursor_down_to_empty_line(editor):
@@ -99,19 +99,19 @@ def test_move_cursor_down_to_empty_line(editor):
         editor.insert(chars)
         editor.newline()
     editor.move_cursor_up()
-    assert editor.vterm.row == 1
-    editor.move_cursor_down()
     assert editor.vterm.row == 2
+    editor.move_cursor_down()
+    assert editor.vterm.row == 3
     editor.insert('foo')
-    editor.check('hello\nworld\nfoo', 7, 2)
+    editor.check('hello\nworld\nfoo', 8, 3)
 
 
 def test_left_right_wrapping(editor):
     editor.insert('hello\nworld')
     editor.move_cursor_left(6)
-    assert editor.vterm.row == 0
-    assert editor.vterm.column == 9
+    assert editor.vterm.row == 1
+    assert editor.vterm.column == 10
     editor.insert('foo')
     editor.move_cursor_right()
     editor.insert('bar')
-    editor.check('hellofoo\nbarworld', 7, 1)
+    editor.check('hellofoo\nbarworld', 8, 2)

@@ -8,8 +8,9 @@ class VirtualTerminal:
         self._height = 50
         self._width = 150
         self._lines = [[]]
-        self.row = 0
-        self.column = 0
+        # terminals index from (1, 1)
+        self.row = 1
+        self.column = 1
         self._raw_input = []
         self._echo = echo
         self._istream_buffer = ''
@@ -28,15 +29,15 @@ class VirtualTerminal:
                 self._handle_escape(chars)
             elif char == '\n':
                 self.row += 1
-                while len(self._lines) <= self.row:
+                while len(self._lines) <= (self.row - 1):
                     self._lines.append([])
-                self.column = 0
+                self.column = 1
             else:
-                line = self._lines[self.row]
+                line = self._lines[self.row - 1]
                 # pad line with spaces if not long enough
-                while len(line) <= self.column:
+                while len(line) <= (self.column - 1):
                     line.append(' ')
-                line[self.column] = char
+                line[self.column - 1] = char
                 self.column += 1
 
     def read(self, count):
@@ -60,13 +61,13 @@ class VirtualTerminal:
                         self.row -= int(count)
                     else:
                         self.row -= 1
-                    assert self.row >= 0
+                    assert self.row >= 1
                 elif direction_code == 'B':
                     if count:
                         self.row += int(count)
                     else:
                         self.row += 1
-                    self.row = min(self.row, len(self._lines) - 1)
+                    self.row = min(self.row, len(self._lines))
                 elif direction_code == 'C':
                     if count:
                         self.column += int(count)
@@ -77,27 +78,27 @@ class VirtualTerminal:
                         self.column -= int(count)
                     else:
                         self.column -= 1
-                    self.column = max(0, self.column)
+                    self.column = max(1, self.column)
                 else:
                     raise Exception(''.join(chars).encode('utf-8'))
             elif m := re.match(r'(\d+)G', ''.join(chars)):
                 column = m.group(1)
-                self.column = max(int(column) - 1, 0)
+                self.column = max(int(column), 1)
                 for i in range(len(m.group(0))):
                     chars.pop(0)
             elif chars[:2] == ['2', 'K']:
-                self._lines[self.row] = [' '] * self.column
+                self._lines[self.row - 1] = [' '] * (self.column - 1)
                 chars.pop(0)
                 chars.pop(0)
             elif chars[:2] == ['6', 'n']:
                 chars.pop(0)
                 chars.pop(0)
-                self._istream_buffer += f'\x1b[{self.row + 1};{self.column + 1}R'
+                self._istream_buffer += f'\x1b[{self.row};{self.column}R'
             elif m := re.match(f'(\d+);(\d+)H', ''.join(chars)):
                 for i in range(len(m.group(0))):
                     chars.pop(0)
-                self.row = max(min(int(m.group(1)) - 1, self._height - 1), 0)
-                self.column = max(min(int(m.group(2)) - 1, self._width - 1), 0)
+                self.row = max(min(int(m.group(1)), self._height), 1)
+                self.column = max(min(int(m.group(2)), self._width), 1)
             else:
                 raise Exception(f'unhandled esacpe sequence {chars}')
         else:
