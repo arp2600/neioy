@@ -151,7 +151,7 @@ class TextEditor:
 
     def pop(self):
         try:
-            self._text.pop(self._cursor)
+            return self._text.pop(self._cursor)
         except IndexError:
             pass
 
@@ -372,6 +372,16 @@ class EditField:
         self._reset_cursor_position()
         self._term.flush()
 
+    def _clear(self):
+        for i in range(len(self._prompts)):
+            term_line = self._term_offset.row + i
+            if term_line > self._term.screen_height:
+                break
+            else:
+                self._term.move_cursor_to(term_line, 1)
+                self._term.erase_line()
+        self._reset_cursor_position()
+
     def _redraw(self):
         # expand the edit field `window` if there are more lines to print than the number of rows allows
         if self._term_offset.row > 1:
@@ -415,7 +425,12 @@ class EditField:
 
     def backspace(self):
         self._text.move_left(1)
-        self._text.pop()
+        char = self._text.pop()
+        if char == '\n':
+            self._clear()
+            row, _ = self._text.get_row_and_column()
+            self._prompts.pop(row + 1)
+
         # self._redraw_line()
         self._redraw()
 
