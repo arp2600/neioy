@@ -323,21 +323,25 @@ class EditField:
         assert amount > 0
         self._text.move_left(amount)
         self._reset_cursor_position()
+        self._redraw()
 
     def move_cursor_right(self, amount=1):
         assert amount > 0
         self._text.move_right(amount)
         self._reset_cursor_position()
+        self._redraw()
 
     def move_cursor_up(self, amount=1):
         assert amount > 0
         self._text.move_up(amount)
         self._reset_cursor_position()
+        self._redraw()
 
     def move_cursor_down(self, amount=1):
         assert amount > 0
         self._text.move_down(amount)
         self._reset_cursor_position()
+        self._redraw()
 
     def _reset_cursor_position(self):
         row, column = self._text.get_row_and_column()
@@ -369,17 +373,39 @@ class EditField:
         self._term.flush()
 
     def _redraw(self):
-        for i, (prompt, line) in enumerate(zip(self._prompts, self._text.iter_lines())):
-            if self._term_offset.row + i > self._term.screen_height:
+        # expand the edit field `window` if there are more lines to print than the number of rows allows
+        if self._term_offset.row > 1:
+            num_lines = len(self._prompts)
+            term_lines = self._term.screen_height - (self._term_offset.row - 1)
+            if term_lines < num_lines:
+                self._term_offset.row -= 1
+
+        # adjust the row offset so that the cursor always remains in the visible area
+        row, column = self._text.get_row_and_column()
+        if self._term_offset.row + row > self._term.screen_height:
+            self._term_offset.row = self._term.screen_height - row
+        elif self._term_offset.row + row < 1:
+            self._term_offset.row = 1 - row
+
+        # draw all the lines
+        for i, (prompt,
+                line) in enumerate(zip(self._prompts,
+                                       self._text.iter_lines())):
+            term_line = self._term_offset.row + i
+            # skip lines that would draw off the top of the screen
+            if term_line < 1:
+                continue
+            # break when lines would start to be drawn below the screen
+            if term_line > self._term.screen_height:
                 break
-            self._term.move_cursor_to(self._term_offset.row + i, self._term_offset.column)
+
+            self._term.move_cursor_to(term_line, self._term_offset.column)
             self._term.erase_line()
             self._term.write(prompt)
             if line.endswith('\n'):
                 line = line[:-1]
             self._term.write(line)
         self._reset_cursor_position()
-
 
     def insert(self, char):
         assert 0x20 <= ord(char) <= 0x7e
