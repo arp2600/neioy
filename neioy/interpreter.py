@@ -368,15 +368,30 @@ class EditField:
         self._reset_cursor_position()
         self._term.flush()
 
+    def _redraw(self):
+        for i, (prompt, line) in enumerate(zip(self._prompts, self._text.iter_lines())):
+            if self._term_offset.row + i > self._term.screen_height:
+                break
+            self._term.move_cursor_to(self._term_offset.row + i, self._term_offset.column)
+            self._term.erase_line()
+            self._term.write(prompt)
+            if line.endswith('\n'):
+                line = line[:-1]
+            self._term.write(line)
+        self._reset_cursor_position()
+
+
     def insert(self, char):
         assert 0x20 <= ord(char) <= 0x7e
         self._text.insert(char)
-        self._redraw_line()
+        # self._redraw_line()
+        self._redraw()
 
     def backspace(self):
         self._text.move_left(1)
         self._text.pop()
-        self._redraw_line()
+        # self._redraw_line()
+        self._redraw()
 
     def newline(self):
         self._text.insert('\n')
@@ -389,12 +404,13 @@ class EditField:
         # TODO this breaks given enough lines.
         # When trying to move_up past the top of the window, nothing happens and _redraw_line draws over the last line.
         # When trying to move_down past the bottom the same thing happens. We knew that already but didn't factor in actually moving down, not adding newlines.
-        self._term.write('\n' * (len(self._prompts) - row))
-        self._term.flush()
-        # Starting from the line the newline was added to, redraw every line going down.
-        for i in range(row - 1, len(self._prompts)):
-            self._redraw_line(i)
-        self._reset_cursor_position()
+        # self._term.write('\n' * (len(self._prompts) - row))
+        # self._term.flush()
+        # # Starting from the line the newline was added to, redraw every line going down.
+        # for i in range(row - 1, len(self._prompts)):
+        #     self._redraw_line(i)
+        # self._reset_cursor_position()
+        self._redraw()
 
     def __str__(self):
         return str(self._text)

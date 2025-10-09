@@ -40,7 +40,7 @@ class _TestHarness:
         expected_vterm = self.edit_field.ps1 + expected.replace(
             '\n', '\n' + self.edit_field.ps2)
 
-        assert str(self.vterm) == expected_vterm
+        assert str(self.vterm).rstrip() == expected_vterm
         assert self.vterm.column == column
         assert self.vterm.row == row
         assert str(self.edit_field) == expected

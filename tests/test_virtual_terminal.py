@@ -24,13 +24,18 @@ def show_sequence(input_string, delay=0.1):
     print('#' * 30)
 
 
-def run_test(input_string, expected, column, row=1, example=None):
+def run_test(input_string,
+             expected,
+             column,
+             row=1,
+             terminal_height=50,
+             example=None):
     if example is not None:
         show_sequence(input_string, delay=example)
 
-    vterm = VirtualTerminal()
+    vterm = VirtualTerminal(height=terminal_height)
     vterm.write(input_string)
-    assert str(vterm) == expected
+    assert str(vterm).rstrip() == expected
     assert vterm.column == column
     assert vterm.row == row
 
@@ -76,7 +81,7 @@ def test_move_down():
     run_test('foo\nbar\nfizz\x1b[2Abuzz\x1b[2Bfin',
              'foo buzz\nbar\nfizz    fin', 12, 3)
     # test move down at bottom
-    run_test('foo\x1b[Bbar', 'foobar', 7, 1)
+    run_test('foo\x1b[Bbar', 'foobar', 7, 1, terminal_height=1)
 
 
 def test_erase_line():

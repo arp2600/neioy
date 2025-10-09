@@ -1,13 +1,14 @@
 import sys
 import re
+from icecream import ic
 
 
 class VirtualTerminal:
 
     def __init__(self, echo=False, height=50, width=150):
-        self._height = 50
-        self._width = 150
-        self._lines = [[]]
+        self._height = height
+        self._width = width
+        self._lines = [[] for _ in range(self._height)]
         # terminals index from (1, 1)
         self.row = 1
         self.column = 1
@@ -29,8 +30,6 @@ class VirtualTerminal:
                 self._handle_escape(chars)
             elif char == '\n':
                 self.row += 1
-                while len(self._lines) <= (self.row - 1):
-                    self._lines.append([])
                 self.column = 1
             else:
                 line = self._lines[self.row - 1]
@@ -94,7 +93,7 @@ class VirtualTerminal:
                 chars.pop(0)
                 chars.pop(0)
                 self._istream_buffer += f'\x1b[{self.row};{self.column}R'
-            elif m := re.match(f'(\d+);(\d+)H', ''.join(chars)):
+            elif m := re.match(r'(\d+);(\d+)H', ''.join(chars)):
                 for i in range(len(m.group(0))):
                     chars.pop(0)
                 self.row = max(min(int(m.group(1)), self._height), 1)
