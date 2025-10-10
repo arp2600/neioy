@@ -53,8 +53,8 @@ class Interpreter:
         if char == '[':
             yield from self._handle_csi()
         elif char == '\x1b':
-            print(f'\n{str(self._editor).encode("utf-8")}\n')
-            print(f'\n{str(self._editor._term).encode("utf-8")}\n')
+            print(f'\n{str(self._editor).encode("utf-8")}')
+            print(f'{str(self._editor._term).encode("utf-8")}\n')
         else:
             raise Exception(
                 f'unhandled escape sequence {char.encode("utf-8")}')
