@@ -159,42 +159,58 @@ class TextEditor:
         return ''.join(self._text)
 
 
-class Terminal:
+class EscapeCodes:
 
     @staticmethod
-    def enable_bracketed_paste(ostream=sys.stdout):
-        ostream.write("\x1b[?2004h")
-        ostream.flush()
+    def enable_bracketed_paste():
+        return "\x1b[?2004h"
 
     @staticmethod
-    def _move_cursor(direction_code, amount, ostream):
+    def _move_cursor(direction_code, amount):
         if amount <= 0:
             raise Exception()
 
         if amount == 1:
-            ostream.write(f'\x1b[{direction_code}')
+            return f'\x1b[{direction_code}'
         else:
-            ostream.write(f'\x1b[{amount}{direction_code}')
+            return f'\x1b[{amount}{direction_code}'
 
     @staticmethod
-    def move_cursor_left(amount=1, ostream=sys.stdout):
-        Terminal._move_cursor('D', amount, ostream)
+    def move_cursor_left(amount=1):
+        return EscapeCodes._move_cursor('D', amount)
 
     @staticmethod
-    def move_cursor_right(amount=1, ostream=sys.stdout):
-        Terminal._move_cursor('C', amount, ostream)
+    def move_cursor_right(amount=1):
+        return EscapeCodes._move_cursor('C', amount)
 
     @staticmethod
-    def move_cursor_up(amount=1, ostream=sys.stdout):
-        Terminal._move_cursor('A', amount, ostream)
+    def move_cursor_up(amount=1):
+        return EscapeCodes._move_cursor('A', amount)
 
     @staticmethod
-    def move_cursor_down(amount=1, ostream=sys.stdout):
-        Terminal._move_cursor('B', amount, ostream)
+    def move_cursor_down(amount=1):
+        return EscapeCodes._move_cursor('B', amount)
 
     @staticmethod
-    def erase_from_cursor_to_end_of_line(ostream=sys.stdout):
-        ostream.write('\x1b[0K')
+    def erase_from_cursor_to_end_of_line():
+        return '\x1b[0K'
+
+    @staticmethod
+    def erase_line():
+        return '\x1b[2K'
+
+    @staticmethod
+    def move_to_column(column):
+        assert column >= 0
+        return f'\x1b[{column}G'
+
+    @staticmethod
+    def move_cursor_to(row, column):
+        return f'\x1b[{row};{column}H'
+
+    @staticmethod
+    def request_cursor_position():
+        return '\x1b[6n'
 
 
 class Term:
@@ -203,6 +219,7 @@ class Term:
         self._istream = istream
         self._ostream = ostream
         self._init_screen_dimensions()
+        # self._lines = [[' ' for _ in range(self.screen_width)] for _ in range(self.screen_height)]
 
     def _init_screen_dimensions(self):
         # save the current position
@@ -221,7 +238,7 @@ class Term:
         self.move_cursor_to(*saved_position)
 
     def _update_cursor_position(self):
-        self._ostream.write('\x1b[6n')
+        self._ostream.write(EscapeCodes.request_cursor_position())
         self._ostream.flush()
         assert self._istream.read(2) == '\x1b['
         row = ''
@@ -247,6 +264,7 @@ class Term:
 
     def write(self, chars):
         for char in chars:
+            # self._lines[self.row][self.column] = char
             if char == '\n':
                 self.column = 0
                 self.row += 1
@@ -261,38 +279,43 @@ class Term:
     def move_cursor_left(self, amount=1):
         assert amount > 0
         assert amount <= self.column
-        Terminal.move_cursor_left(amount, self._ostream)
+        self._ostream.write(EscapeCodes.move_cursor_left(amount))
         self.column -= amount
 
     def move_cursor_right(self, amount=1):
         assert amount > 0
-        Terminal.move_cursor_right(amount, self._ostream)
+        self._ostream.write(
+            EscapeCodes.move_cursor_right(amount, self._ostream))
         self.column += amount
 
     def move_cursor_up(self, amount=1):
         assert amount > 0
         assert amount <= self.row
-        Terminal.move_cursor_up(amount, self._ostream)
+        self._ostream.write(EscapeCodes.move_cursor_up(amount, self._ostream))
         self.row -= amount
 
     def move_cursor_down(self, amount=1):
         assert amount > 0
-        Terminal.move_cursor_down(amount, self._ostream)
+        self._ostream.write(EscapeCodes.move_cursor_down(
+            amount, self._ostream))
         self.row += amount
 
     def move_to_column(self, column):
         assert column >= 0
-        self._ostream.write(f'\x1b[{column}G')
+        self._ostream.write(EscapeCodes.move_to_column(column))
 
     def erase_line(self):
-        self._ostream.write('\x1b[2K')
+        self._ostream.write(EscapeCodes.erase_line())
 
     def move_cursor_to(self, row=None, column=None):
         if row is not None:
             self.row = row
         if column is not None:
             self.column = column
-        self._ostream.write(f'\x1b[{self.row};{self.column}H')
+        self._ostream.write(EscapeCodes.move_cursor_to(self.row, self.column))
+
+    # def __str__(self):
+    #     return ''.join([''.join(line) for line in self._lines])
 
 
 @dataclass
@@ -464,7 +487,8 @@ class Interpreter:
         self._setup_tty()
 
         # Enable bracketed paste
-        Terminal.enable_bracketed_paste()
+        sys.stdout.write(EscapeCodes.enable_bracketed_paste())
+        sys.stdout.flush()
         self._bracketed_paste = False
 
         if locals is None:
