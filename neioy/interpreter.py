@@ -9,7 +9,7 @@ from tempfile import NamedTemporaryFile
 from codeop import CommandCompiler
 from itertools import islice
 from dataclasses import dataclass
-from neioy.escape_codes import EscapeCodes
+import neioy.escape_codes as escape_codes
 from neioy.post_window import post
 from icecream import ic
 
@@ -180,7 +180,7 @@ class Term:
         self.move_cursor_to(*saved_position)
 
     def _update_cursor_position(self):
-        self._ostream.write(EscapeCodes.request_cursor_position())
+        self._ostream.write(escape_codes.request_cursor_position())
         self._ostream.flush()
         assert self._istream.read(2) == '\x1b['
         row = ''
@@ -221,40 +221,40 @@ class Term:
     def move_cursor_left(self, amount=1):
         assert amount > 0
         assert amount <= self.column
-        self._ostream.write(EscapeCodes.move_cursor_left(amount))
+        self._ostream.write(escape_codes.move_cursor_left(amount))
         self.column -= amount
 
     def move_cursor_right(self, amount=1):
         assert amount > 0
         self._ostream.write(
-            EscapeCodes.move_cursor_right(amount, self._ostream))
+            escape_codes.move_cursor_right(amount, self._ostream))
         self.column += amount
 
     def move_cursor_up(self, amount=1):
         assert amount > 0
         assert amount <= self.row
-        self._ostream.write(EscapeCodes.move_cursor_up(amount, self._ostream))
+        self._ostream.write(escape_codes.move_cursor_up(amount, self._ostream))
         self.row -= amount
 
     def move_cursor_down(self, amount=1):
         assert amount > 0
-        self._ostream.write(EscapeCodes.move_cursor_down(
+        self._ostream.write(escape_codes.move_cursor_down(
             amount, self._ostream))
         self.row += amount
 
     def move_to_column(self, column):
         assert column >= 0
-        self._ostream.write(EscapeCodes.move_to_column(column))
+        self._ostream.write(escape_codes.move_cursor_to_column(column))
 
     def erase_line(self):
-        self._ostream.write(EscapeCodes.erase_line())
+        self._ostream.write(escape_codes.erase_line())
 
     def move_cursor_to(self, row=None, column=None):
         if row is not None:
             self.row = row
         if column is not None:
             self.column = column
-        self._ostream.write(EscapeCodes.move_cursor_to(self.row, self.column))
+        self._ostream.write(escape_codes.move_cursor_to(self.row, self.column))
 
     # def __str__(self):
     #     return ''.join([''.join(line) for line in self._lines])
@@ -429,7 +429,7 @@ class Interpreter:
         self._setup_tty()
 
         # Enable bracketed paste
-        sys.stdout.write(EscapeCodes.enable_bracketed_paste())
+        sys.stdout.write(escape_codes.enable_bracketed_paste())
         sys.stdout.flush()
         self._bracketed_paste = False
 
