@@ -2,6 +2,8 @@ import tty
 import sys
 import termios
 import os
+import neioy.escape_codes as escape_codes
+from icecream import ic
 
 from interpreter import EditField
 
@@ -29,35 +31,27 @@ class Interpreter:
     def _reset_input_buffer(self):
         self._editor = EditField()
 
-    def _handle_csi(self):
-        sequence = ''
+    def _handle_escape_code(self, code):
+        if isinstance(code, escape_codes.MoveCursorLeft):
+            self._editor.move_cursor_left(code.amount)
+        elif isinstance(code, escape_codes.MoveCursorRight):
+            self._editor.move_cursor_right(code.amount)
+        elif isinstance(code, escape_codes.MoveCursorUp):
+            self._editor.move_cursor_up(code.amount)
+        elif isinstance(code, escape_codes.MoveCursorDown):
+            self._editor.move_cursor_down(code.amount)
+        else:
+            raise Exception()
+
+    def _handle_escape_sequence(self):
+        sequence = '\x1b'
         while True:
             char = yield from self._get_char()
             sequence += char
-            if 0x40 <= ord(char) <= 0x7E:
-                break
-
-        if sequence == 'A':
-            self._editor.move_cursor_up()
-        elif sequence == 'B':
-            self._editor.move_cursor_down()
-        elif sequence == 'C':
-            self._editor.move_cursor_right()
-        elif sequence == 'D':
-            self._editor.move_cursor_left()
-        else:
-            print(sequence.encode('utf-8'))
-
-    def _handle_escape_sequence(self):
-        char = yield from self._get_char()
-        if char == '[':
-            yield from self._handle_csi()
-        elif char == '\x1b':
-            print(f'\n{str(self._editor).encode("utf-8")}')
-            print(f'{str(self._editor._term).encode("utf-8")}\n')
-        else:
-            raise Exception(
-                f'unhandled escape sequence {char.encode("utf-8")}')
+            code = escape_codes.parse_escape_code(sequence)
+            if code is not None:
+                self._handle_escape_code(code)
+                return
 
     def _get_char(self):
         while not self._chars:
