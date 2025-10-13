@@ -1,5 +1,6 @@
 import re
 import inspect
+from icecream import ic
 
 
 def _snake_to_camel_case(name):
@@ -125,50 +126,94 @@ def request_cursor_position():
     return '\x1b[6n'
 
 
+def _parse_int(chars, start):
+    i = start
+    int_str = ''
+    while i < len(chars) and ('0' <= chars[i] <= '9'):
+        int_str += chars[i]
+        i += 1
+    return int(chars[start:i]), i
+
+
+def _unrecognized_sequence_exception(chars):
+    return Exception('unrecognised sequence {chars.encode("utf-8")}')
+
+
+def _parse_csi_with_two_values(chars, i, value_1):
+    assert '0' <= chars[i] <= '9'
+    value_2, i = _parse_int(chars, i)
+
+    match chars[i]:
+        case 'H':
+            return MoveCursorTo(row=value_1, column=value_2)
+        case _:
+            raise _unrecognized_sequence_exception(chars)
+
+
+def _parse_csi_with_value(chars, i):
+    value_1, i = _parse_int(chars, i)
+
+    match value_1, chars[i]:
+        case _, 'A':
+            return MoveCursorUp(value_1)
+        case _, 'B':
+            return MoveCursorDown(value_1)
+        case _, 'C':
+            return MoveCursorRight(value_1)
+        case _, 'D':
+            return MoveCursorLeft(value_1)
+        case 0, 'K':
+            return EraseFromCursorToEndOfLine()
+        case 2, 'K':
+            return EraseLine()
+        case 200, '~':
+            return BracketedPasteStart()
+        case 201, '~':
+            return BracketedPasteEnd()
+        case _, ';':
+            return _parse_csi_with_two_values(chars, i + 1, value_1)
+        case _:
+            raise _unrecognized_sequence_exception(chars)
+
+
+def _parse_bracketed_paste_command(chars, i):
+    value, i = _parse_int(chars, i)
+    match value, chars[i]:
+        case 2004, 'h':
+            return EnableBracketedPaste()
+        case 2004, 'l':
+            return DisableBracketedPaste()
+        case _:
+            raise _unrecognized_sequence_exception(chars)
+
+
+def _parse_csi_command(chars):
+    i = 2
+    match chars[i]:
+        case 'A':
+            return MoveCursorUp()
+        case 'B':
+            return MoveCursorDown()
+        case 'C':
+            return MoveCursorRight()
+        case 'D':
+            return MoveCursorLeft()
+        case '?':
+            return _parse_bracketed_paste_command(chars, i + 1)
+        case _ if chars[i].isdigit():
+            return _parse_csi_with_value(chars, i)
+        case _:
+            raise _unrecognized_sequence_exception(chars)
+
+
 def parse_escape_code(chars):
-    assert chars[0] == '\x1b'
-    if m := re.match(r'\[(?P<code>[a-zA-Z])', chars[1:]):
-        match m.group('code'):
-            case 'A':
-                return MoveCursorUp()
-            case 'B':
-                return MoveCursorDown()
-            case 'C':
-                return MoveCursorRight()
-            case 'D':
-                return MoveCursorLeft()
-            case 'G':
-                return MoveCursorToColumn()
-            case _:
-                raise Exception()
-    elif m := re.match(r'\[(?P<amount>\d+)(?P<code>[a-zA-Z])', chars[1:]):
-        amount = int(m.group('amount'))
-        match amount, m.group('code'):
-            case _, 'A':
-                return MoveCursorUp(amount=amount)
-            case _, 'B':
-                return MoveCursorDown(amount=amount)
-            case _, 'C':
-                return MoveCursorRight(amount=amount)
-            case _, 'D':
-                return MoveCursorLeft(amount=amount)
-            case _, 'G':
-                return MoveCursorToColumn(column=amount)
-            case 0, 'K':
-                return EraseFromCursorToEndOfLine()
-            case 2, 'K':
-                return EraseLine()
-            case _:
-                raise Exception()
-    elif m := re.match(r'\[(?P<row>\d+);(?P<column>\d+)H', chars[1:]):
-        row = int(m.group('row'))
-        column = int(m.group('column'))
-        return MoveCursorTo(column=column, row=row)
-    elif chars == '\x1b[?2004h':
-        return EnableBracketedPaste()
-    elif 'a' <= chars[-1] <= 'z':
-        raise Exception(f'unrecognized escape code "{chars}"')
-    elif 'A' <= chars[-1] <= 'Z':
-        raise Exception(f'unrecognized escape code "{chars}"')
-    else:
-        return None
+    try:
+        assert chars[0] == '\x1b'
+
+        if chars[1] == '[':
+            return _parse_csi_command(chars)
+        else:
+            raise _unrecognized_sequence_exception(chars)
+
+    except IndexError:
+        return None  # incomplete sequence
