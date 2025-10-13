@@ -1,43 +1,72 @@
 import re
+import inspect
+
+
+def _snake_to_camel_case(name):
+    return ''.join(x.capitalize() for x in name.split('_'))
+
+
+def _self_parameter():
+    return inspect.Parameter('self',
+                             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD)
 
 
 def _escape_code(str_func):
+    name = _snake_to_camel_case(str_func.__name__)
 
-    def wrap_init(init_func, params):
+    sig = inspect.signature(str_func)
 
-        def wrapper(self, **kwargs):
-            init_func(self)
-            for arg, value in params.items():
-                if arg in kwargs:
-                    value = kwargs[arg]
-                setattr(self, arg, value)
+    init_params = [_self_parameter()]
+    init_params.extend(sig.parameters.values())
+    init_sig = str(inspect.Signature(init_params))
 
-        return wrapper
+    indent = ' ' * 8
+    assignments = [f'{indent}self.{x} = {x}' for x in sig.parameters.keys()]
+    if assignments:
+        assignments = '\n'.join(assignments)
+    else:
+        assignments = f'{indent}pass'
 
-    def wrap_str_func(str_func, params):
+    str_args = [f'self.{x}' for x in sig.parameters.keys()]
+    str_args = ', '.join(str_args)
 
-        def str_wrapper(self):
-            kwargs = {arg: getattr(self, arg) for arg in params.keys()}
-            return str_func(**kwargs)
+    exec_str = f"""
+class {name}:
+    def __init__{init_sig}:
+{assignments}
 
-        return str_wrapper
+    def __str__(self):
+        return {str_func.__name__}({str_args})
+"""
 
-    def wrapper(cls):
-        params = {i: v for i, v in vars(cls).items() if not i.startswith('__')}
-        cls.__init__ = wrap_init(cls.__init__, params)
-        cls.__str__ = wrap_str_func(str_func, params)
-        return cls
-
-    return wrapper
+    exec_locals = {}
+    exec(exec_str, locals=exec_locals)
+    globals()[f'{name}'] = exec_locals[f'{name}']
+    return str_func
 
 
+@_escape_code
 def enable_bracketed_paste():
+    """Write to stdout to enable bracketed paste for this application"""
     return "\x1b[?2004h"
 
 
-@_escape_code(enable_bracketed_paste)
-class EnableBracketedPaste:
-    pass
+@_escape_code
+def disable_bracketed_paste():
+    """Write to stdout to enable bracketed paste for this application"""
+    return "\x1b[?2004l"
+
+
+@_escape_code
+def bracketed_paste_start():
+    """When read from stdin this marks the start of a bracketed paste input"""
+    return "\x1b[200~"
+
+
+@_escape_code
+def bracketed_paste_end():
+    """When read from stdin this marks the end of a bracketed paste input"""
+    return "\x1b[201~"
 
 
 def _move_cursor(direction_code, amount):
@@ -50,112 +79,81 @@ def _move_cursor(direction_code, amount):
         return f'\x1b[{amount}{direction_code}'
 
 
+@_escape_code
 def move_cursor_left(amount=1):
     return _move_cursor('D', amount)
 
 
-@_escape_code(move_cursor_left)
-class MoveCursorLeft:
-    amount = 1
-
-
+@_escape_code
 def move_cursor_right(amount=1):
     return _move_cursor('C', amount)
 
 
-@_escape_code(move_cursor_right)
-class MoveCursorRight:
-    amount = 1
-
-
+@_escape_code
 def move_cursor_up(amount=1):
     return _move_cursor('A', amount)
 
 
-@_escape_code(move_cursor_up)
-class MoveCursorUp:
-    amount = 1
-
-
+@_escape_code
 def move_cursor_down(amount=1):
     return _move_cursor('B', amount)
 
 
-@_escape_code(move_cursor_down)
-class MoveCursorDown:
-    amount = 1
-
-
+@_escape_code
 def erase_from_cursor_to_end_of_line():
     return '\x1b[0K'
 
 
-@_escape_code(erase_from_cursor_to_end_of_line)
-class EraseFromCursorToEndOfLine:
-    pass
-
-
+@_escape_code
 def erase_line():
     return '\x1b[2K'
 
 
-@_escape_code(erase_line)
-class EraseLine:
-    pass
-
-
+@_escape_code
 def move_cursor_to_column(column):
     assert column >= 0
     return f'\x1b[{column}G'
 
 
-@_escape_code(move_cursor_to_column)
-class MoveCursorToColumn:
-    column = 1
-
-
+@_escape_code
 def move_cursor_to(row, column):
     return f'\x1b[{row};{column}H'
 
 
-@_escape_code(move_cursor_to)
-class MoveCursorTo:
-    column = 1
-    row = 1
-
-
+@_escape_code
 def request_cursor_position():
     return '\x1b[6n'
 
 
-@_escape_code(request_cursor_position)
-class RequestCursorPosition:
-    pass
-
-
 def parse_escape_code(chars):
     assert chars[0] == '\x1b'
-    if m := re.match(r'\[(?P<amount>\d+)?(?P<code>[a-zA-Z])', chars[1:]):
-
-        def get_amount(default):
-            if m.group('amount'):
-                return int(m.group('amount'))
-            else:
-                return default
-
-        amount = m.group('amount')
-
+    if m := re.match(r'\[(?P<code>[a-zA-Z])', chars[1:]):
+        match m.group('code'):
+            case 'A':
+                return MoveCursorUp()
+            case 'B':
+                return MoveCursorDown()
+            case 'C':
+                return MoveCursorRight()
+            case 'D':
+                return MoveCursorLeft()
+            case 'G':
+                return MoveCursorToColumn()
+            case _:
+                raise Exception()
+    elif m := re.match(r'\[(?P<amount>\d+)(?P<code>[a-zA-Z])', chars[1:]):
+        amount = int(m.group('amount'))
         match amount, m.group('code'):
             case _, 'A':
-                return MoveCursorUp(amount=get_amount(1))
+                return MoveCursorUp(amount=amount)
             case _, 'B':
-                return MoveCursorDown(amount=get_amount(1))
+                return MoveCursorDown(amount=amount)
             case _, 'C':
-                return MoveCursorRight(amount=get_amount(1))
+                return MoveCursorRight(amount=amount)
             case _, 'D':
-                return MoveCursorLeft(amount=get_amount(1))
+                return MoveCursorLeft(amount=amount)
             case _, 'G':
-                return MoveCursorToColumn(column=int(amount))
+                return MoveCursorToColumn(column=amount)
             case 0, 'K':
                 return EraseFromCursorToEndOfLine()
             case 2, 'K':
