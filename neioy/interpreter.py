@@ -182,27 +182,16 @@ class Term:
     def _update_cursor_position(self):
         self._ostream.write(escape_codes.request_cursor_position())
         self._ostream.flush()
-        assert self._istream.read(2) == '\x1b['
-        row = ''
+        chars = self._istream.read(2)
+        assert chars == '\x1b['
         while True:
-            char = self._istream.read(1)
-            if '0' <= char <= '9':
-                row += char
-            elif char == ';':
-                break
-            else:
-                raise Exception()
-        column = ''
-        while True:
-            char = self._istream.read(1)
-            if '0' <= char <= '9':
-                column += char
-            elif char == 'R':
-                break
-            else:
-                raise Exception()
-        self.row = int(row)
-        self.column = int(column)
+            chars += self._istream.read(1)
+            code = escape_codes.parse_escape_code(chars)
+            if code is not None:
+                assert isinstance(code, escape_codes.ReportedCursorPosition)
+                self.row = code.row
+                self.column = code.column
+                return
 
     def write(self, chars):
         for char in chars:
@@ -238,8 +227,8 @@ class Term:
 
     def move_cursor_down(self, amount=1):
         assert amount > 0
-        self._ostream.write(escape_codes.move_cursor_down(
-            amount, self._ostream))
+        self._ostream.write(
+            escape_codes.move_cursor_down(amount, self._ostream))
         self.row += amount
 
     def move_to_column(self, column):

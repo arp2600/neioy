@@ -31,6 +31,9 @@ def _escape_code(str_func):
     str_args = [f'self.{x}' for x in sig.parameters.keys()]
     str_args = ', '.join(str_args)
 
+    repr_args = [f'{x}={{self.{x}}}' for x in sig.parameters.keys()]
+    repr_args = ', '.join(repr_args)
+
     exec_str = f"""
 class {name}:
     def __init__{init_sig}:
@@ -38,6 +41,9 @@ class {name}:
 
     def __str__(self):
         return {str_func.__name__}({str_args})
+
+    def __repr__(self):
+        return f"{name}({repr_args})"
 """
 
     exec_locals = {}
@@ -126,9 +132,14 @@ def request_cursor_position():
     return '\x1b[6n'
 
 
+@_escape_code
+def reported_cursor_position(row, column):
+    return f'\x1b[{row};{column}R'
+
+
 def _parse_int(chars, start):
-    i = start
-    int_str = ''
+    int_str = chars[start]
+    i = start + 1
     while i < len(chars) and ('0' <= chars[i] <= '9'):
         int_str += chars[i]
         i += 1
@@ -146,6 +157,8 @@ def _parse_csi_with_two_values(chars, i, value_1):
     match chars[i]:
         case 'H':
             return MoveCursorTo(row=value_1, column=value_2)
+        case 'R':
+            return ReportedCursorPosition(row=value_1, column=value_2)
         case _:
             raise _unrecognized_sequence_exception(chars)
 
@@ -155,13 +168,17 @@ def _parse_csi_with_value(chars, i):
 
     match value_1, chars[i]:
         case _, 'A':
-            return MoveCursorUp(value_1)
+            return MoveCursorUp(amount=value_1)
         case _, 'B':
-            return MoveCursorDown(value_1)
+            return MoveCursorDown(amount=value_1)
         case _, 'C':
-            return MoveCursorRight(value_1)
+            return MoveCursorRight(amount=value_1)
         case _, 'D':
-            return MoveCursorLeft(value_1)
+            return MoveCursorLeft(amount=value_1)
+        case _, 'G':
+            return MoveCursorToColumn(column=value_1)
+        case 6, 'n':
+            return RequestCursorPosition()
         case 0, 'K':
             return EraseFromCursorToEndOfLine()
         case 2, 'K':

@@ -1,58 +1,41 @@
 import neioy.escape_codes as ec
 from neioy.escape_codes import parse_escape_code
 from icecream import ic
+import pytest
 
 
-def _test_parse_code(code_str):
+@pytest.mark.parametrize("code_str, code_class", [
+    ('\x1b[D', ec.MoveCursorLeft),
+    ('\x1b[3D', ec.MoveCursorLeft),
+    ('\x1b[12D', ec.MoveCursorLeft),
+    ('\x1b[C', ec.MoveCursorRight),
+    ('\x1b[8C', ec.MoveCursorRight),
+    ('\x1b[45C', ec.MoveCursorRight),
+    ('\x1b[B', ec.MoveCursorDown),
+    ('\x1b[5B', ec.MoveCursorDown),
+    ('\x1b[67B', ec.MoveCursorDown),
+    ('\x1b[A', ec.MoveCursorUp),
+    ('\x1b[7A', ec.MoveCursorUp),
+    ('\x1b[23A', ec.MoveCursorUp),
+    ('\x1b[9G', ec.MoveCursorToColumn),
+    ('\x1b[13G', ec.MoveCursorToColumn),
+    ('\x1b[2;5H', ec.MoveCursorTo),
+    ('\x1b[23;54H', ec.MoveCursorTo),
+    ('\x1b[?2004h', ec.EnableBracketedPaste),
+    ('\x1b[?2004l', ec.DisableBracketedPaste),
+    ('\x1b[200~', ec.BracketedPasteStart),
+    ('\x1b[201~', ec.BracketedPasteEnd),
+    ('\x1b[0K', ec.EraseFromCursorToEndOfLine),
+    ('\x1b[2K', ec.EraseLine),
+    ('\x1b[6n', ec.RequestCursorPosition),
+    ('\x1b[12;34R', ec.ReportedCursorPosition),
+])
+def test_parsing_code(code_str, code_class):
     # parse each stage of the partial code before parsing the full code
     for i in range(len(code_str)):
         code = parse_escape_code(code_str[:i])
         assert code == None
-    return parse_escape_code(code_str)
 
-
-def test_parse_move_left():
-    code = _test_parse_code('\x1b[D')
-    assert isinstance(code, ec.MoveCursorLeft)
-    assert str(code) == '\x1b[D'
-
-    code = _test_parse_code('\x1b[7D')
-    assert isinstance(code, ec.MoveCursorLeft)
-    assert str(code) == '\x1b[7D'
-
-
-def test_parse_move_right():
-    code = _test_parse_code('\x1b[C')
-    assert isinstance(code, ec.MoveCursorRight)
-    assert str(code) == '\x1b[C'
-
-    code = _test_parse_code('\x1b[7C')
-    assert isinstance(code, ec.MoveCursorRight)
-    assert str(code) == '\x1b[7C'
-
-
-def test_parse_move_down():
-    code = _test_parse_code('\x1b[B')
-    assert isinstance(code, ec.MoveCursorDown)
-    assert str(code) == '\x1b[B'
-
-    code = _test_parse_code('\x1b[7B')
-    assert isinstance(code, ec.MoveCursorDown)
-    assert str(code) == '\x1b[7B'
-
-
-def test_parse_move_up():
-    code = _test_parse_code('\x1b[A')
-    assert isinstance(code, ec.MoveCursorUp)
-    assert str(code) == '\x1b[A'
-
-    code = _test_parse_code('\x1b[7A')
-    assert isinstance(code, ec.MoveCursorUp)
-    assert str(code) == '\x1b[7A'
-
-
-def test_parse_move_cursor_to():
-    code_str = '\x1b[23;54H'
-    code = _test_parse_code(code_str)
-    assert isinstance(code, ec.MoveCursorTo)
+    code = parse_escape_code(code_str)
+    assert isinstance(code, code_class)
     assert str(code) == code_str
