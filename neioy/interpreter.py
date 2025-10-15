@@ -5,6 +5,7 @@ import termios
 import time
 import subprocess
 import io
+import traceback
 from tempfile import NamedTemporaryFile
 from codeop import CommandCompiler
 from itertools import islice
@@ -414,6 +415,8 @@ class EditField:
 class Interpreter:
 
     def __init__(self, locals=None):
+        # Adding '' to sys.path allows us to import local modules.
+        sys.path.insert(0, '')
 
         self._setup_tty()
 
@@ -452,36 +455,32 @@ class Interpreter:
     def _reset_input_buffer(self):
         self._editor = EditField()
 
-    def _handle_csi(self):
-        sequence = ''
+    def _handle_escape_code(self, code):
+        match code:
+            case escape_codes.MoveCursorLeft():
+                self._editor.move_cursor_left(code.amount)
+            case escape_codes.MoveCursorRight():
+                self._editor.move_cursor_right(code.amount)
+            case escape_codes.MoveCursorUp():
+                self._editor.move_cursor_up(code.amount)
+            case escape_codes.MoveCursorDown():
+                self._editor.move_cursor_down(code.amount)
+            case escape_codes.BracketedPasteStart():
+                self._bracketed_paste = True
+            case escape_codes.BracketedPasteEnd():
+                self._bracketed_paste = False
+            case _:
+                raise Exception()
+
+    def _handle_escape_sequence(self):
+        sequence = '\x1b'
         while True:
             char = yield from self._get_char()
             sequence += char
-            if 0x40 <= ord(char) <= 0x7E:
-                break
-
-        if sequence == '200~':
-            self._bracketed_paste = True
-        elif sequence == '201~':
-            self._bracketed_paste = False
-        elif sequence == 'A':
-            self._editor.move_cursor_up()
-        elif sequence == 'B':
-            self._editor.move_cursor_down()
-        elif sequence == 'C':
-            self._editor.move_cursor_right()
-        elif sequence == 'D':
-            self._editor.move_cursor_left()
-        else:
-            print(sequence.encode('utf-8'))
-
-    def _handle_escape_sequence(self):
-        char = yield from self._get_char()
-        if char == '[':
-            yield from self._handle_csi()
-        else:
-            raise Exception(
-                f'unhandled escape sequence {char.encode("utf-8")}')
+            code = escape_codes.parse_escape_code(sequence)
+            if code is not None:
+                self._handle_escape_code(code)
+                return
 
     def _get_char(self):
         while not self._chars:
@@ -514,19 +513,20 @@ class Interpreter:
         while True:
             char = yield from self._get_char()
 
-            if char == '\x1b':
-                yield from self._handle_escape_sequence()
-            elif char == '\x03':  # ctrl-c
-                self._handle_ctrl_c()
-            elif ord(char) == 0x7f:
-                self._editor.backspace()
-            elif char == '\t':
-                for _ in range(4):
-                    self._editor.insert(' ')
-            elif char == '\n':
-                self._handle_newline()
-            else:
-                self._editor.insert(char)
+            match char:
+                case '\x1b':
+                    yield from self._handle_escape_sequence()
+                case '\x03':  # ctrl-c
+                    self._handle_ctrl_c()
+                case '\x7f':
+                    self._editor.backspace()
+                case '\t':
+                    for _ in range(4):
+                        self._editor.insert(' ')
+                case '\n':
+                    self._handle_newline()
+                case _:
+                    self._editor.insert(char)
 
     def _reset_term(self):
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH,
@@ -551,10 +551,8 @@ class Interpreter:
             if code is None:
                 self._editor.newline()
                 return
-        except (OverflowError, SyntaxError, ValueError):
-            sys.stdout.write(f'\nsyntax error\n')
-            sys.stdout.write(source)
-            sys.stdout.write('\n\n')
+        except (OverflowError, SyntaxError, ValueError) as e:
+            self._showtraceback(e, None, source)
             self._reset_input_buffer()
             return
 
@@ -564,8 +562,44 @@ class Interpreter:
         except SystemExit as e:
             self._reset_term()
             raise e
+        except Exception as e:
+            self._showtraceback(e, e.__traceback__.tb_next)
 
         self._reset_input_buffer()
+
+    def _showtraceback(self, e, tb, source=''):
+        typ = type(e)
+        sys.last_type = typ
+        sys.last_traceback = tb
+        e = e.with_traceback(tb)
+        # Set the line of text that the exception refers to
+        lines = source.splitlines()
+        if (source and typ is SyntaxError and not e.text
+                # if (source and typ is SyntaxError and not e.text
+                and e.lineno is not None and len(lines) >= e.lineno):
+            e.text = lines[e.lineno - 1]
+        sys.last_exc = sys.last_value = e = e.with_traceback(tb)
+        if sys.excepthook is sys.__excepthook__:
+            self._excepthook(typ, e, tb)
+        else:
+            # If someone has set sys.excepthook, we let that take precedence
+            # over self.write
+            try:
+                sys.excepthook(typ, e, tb)
+            except SystemExit:
+                raise
+            except BaseException as e:
+                e.__context__ = None
+                e = e.with_traceback(e.__traceback__.tb_next)
+                print('Error in sys.excepthook:', file=sys.stderr)
+                sys.__excepthook__(type(e), e, e.__traceback__)
+                print(file=sys.stderr)
+                print('Original exception was:', file=sys.stderr)
+                sys.__excepthook__(typ, e, tb)
+
+    def _excepthook(self, typ, value, tb):
+        lines = traceback.format_exception(typ, value, tb)
+        sys.stderr.write(''.join(lines))
 
     def update(self):
         next(self._run_generator)
